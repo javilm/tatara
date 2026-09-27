@@ -1,0 +1,10 @@
+; the linker's own modules.
+
+tanren.tro				; the driver
+lcmd.tro arglist.tro			; the command line
+lobj.tro				; the object reader
+lseg.tro lsym.tro limg.tro		; tables and the image
+lerrs.tro
+
+msxdos.tro strutil.tro alloc.tro hash.tro	; shared
+

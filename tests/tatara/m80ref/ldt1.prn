@@ -1,0 +1,26 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; LD between registers, (HL), and immediates
+  0000'   78                    t0:     ld      a,b
+  0001'   66                    t1:     ld      h,(hl)
+  0002'   73                    t2:     ld      (hl),e
+  0003'   0E 05                 t3:     ld      c,5
+  0005'   36 05                 t4:     ld      (hl),5
+  0007'   C9                    t5:     ret
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000'   T0              0001'   T1              0002'   T2              
+0003'   T3              0005'   T4              0007'   T5              
+
+
+
+No Fatal error(s)
+
+
+

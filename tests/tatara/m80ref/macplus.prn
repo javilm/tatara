@@ -1,0 +1,29 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; 049: M80 flags a macro-generated line with a "+". WHERE it puts it
+                                ; is what this test asks M80, which is why it obeys M80's rules - t0
+                                ; upward, and an END line
+                                byte    macro   n
+                                        db      n
+                                        endm
+  0000'                         t0:     byte    1
+  0000'   01              +             db      1
+                                        byte    2
+  0001'   02              +             db      2
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+BYTE            
+
+Symbols:
+0000'   T0              
+
+
+
+No Fatal error(s)
+
+
+

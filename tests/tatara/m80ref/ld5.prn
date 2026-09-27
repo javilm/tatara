@@ -1,0 +1,29 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; C_LD: I and R. regtab gives both of them code 0, so only the KIND
+                                ; tells them apart - and the two pairs are one expression each:
+                                ; 57h + 8*(kind - OK_I) and 47h + 8*(kind - OK_I)
+  0000'                                 aseg
+                                        org     0
+  0000    ED 57                 t0:     ld      a,i
+  0002    ED 5F                 t1:     ld      a,r
+  0004    ED 47                 t2:     ld      i,a
+  0006    ED 4F                 t3:     ld      r,a
+  0008    00                    t4:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000    T0              0002    T1              0004    T2              
+0006    T3              0008    T4              
+
+
+
+No Fatal error(s)
+
+
+

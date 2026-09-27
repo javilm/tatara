@@ -1,0 +1,24 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; a doubled delimiter is ONE character, in a string and in a constant
+  0000'                                 aseg
+                                        org     0
+  0000    69 74 27 73           t0:     db      'it''s'
+  0004    27                    t1:     db      ''''
+  0005    00                    t2:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000    T0              0004    T1              0005    T2              
+
+
+
+No Fatal error(s)
+
+
+

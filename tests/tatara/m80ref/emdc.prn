@@ -1,0 +1,24 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; DC puts the high bit on the last character and only the last
+  0000'                                 aseg
+                                        org     0
+  0000    61 62 E3              t0:     dc      'abc'
+  0003    E1                    t1:     dc      'a'
+  0004    00                    t2:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000    T0              0003    T1              0004    T2              
+
+
+
+No Fatal error(s)
+
+
+

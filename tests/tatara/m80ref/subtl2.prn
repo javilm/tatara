@@ -1,0 +1,111 @@
+Two Pages       MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; 056 D2: a SUBTTL, and then enough lines to reach a second page. The
+                                ; model says the subtitle is on page 1-1 and not on page 1. If M80
+                                ; prints no subtitle at all, both pages are blank under the header and
+                                ; the model is wrong.
+                                        title   Two Pages
+                                        subttl  The Subtitle
+                                        rept    80
+                                        db      0
+                                        endm
+  0000'   00              +             db      0
+  0001'   00              +             db      0
+  0002'   00              +             db      0
+  0003'   00              +             db      0
+  0004'   00              +             db      0
+  0005'   00              +             db      0
+  0006'   00              +             db      0
+  0007'   00              +             db      0
+  0008'   00              +             db      0
+  0009'   00              +             db      0
+  000A'   00              +             db      0
+  000B'   00              +             db      0
+  000C'   00              +             db      0
+  000D'   00              +             db      0
+  000E'   00              +             db      0
+  000F'   00              +             db      0
+  0010'   00              +             db      0
+  0011'   00              +             db      0
+  0012'   00              +             db      0
+  0013'   00              +             db      0
+  0014'   00              +             db      0
+  0015'   00              +             db      0
+  0016'   00              +             db      0
+  0017'   00              +             db      0
+  0018'   00              +             db      0
+  0019'   00              +             db      0
+  001A'   00              +             db      0
+  001B'   00              +             db      0
+  001C'   00              +             db      0
+  001D'   00              +             db      0
+  001E'   00              +             db      0
+  001F'   00              +             db      0
+  0020'   00              +             db      0
+  0021'   00              +             db      0
+  0022'   00              +             db      0
+  0023'   00              +             db      0
+  0024'   00              +             db      0
+  0025'   00              +             db      0
+  0026'   00              +             db      0
+  0027'   00              +             db      0
+  0028'   00              +             db      0
+  0029'   00              +             db      0
+  002A'   00              +             db      0
+  002B'   00              +             db      0
+  002C'   00              +             db      0
+  002D'   00              +             db      0
+  002E'   00              +             db      0
+^LTwo Pages     MSX.M-80 2.00   27-Sep-26       PAGE    1-1
+The Subtitle
+
+  002F'   00              +             db      0
+  0030'   00              +             db      0
+  0031'   00              +             db      0
+  0032'   00              +             db      0
+  0033'   00              +             db      0
+  0034'   00              +             db      0
+  0035'   00              +             db      0
+  0036'   00              +             db      0
+  0037'   00              +             db      0
+  0038'   00              +             db      0
+  0039'   00              +             db      0
+  003A'   00              +             db      0
+  003B'   00              +             db      0
+  003C'   00              +             db      0
+  003D'   00              +             db      0
+  003E'   00              +             db      0
+  003F'   00              +             db      0
+  0040'   00              +             db      0
+  0041'   00              +             db      0
+  0042'   00              +             db      0
+  0043'   00              +             db      0
+  0044'   00              +             db      0
+  0045'   00              +             db      0
+  0046'   00              +             db      0
+  0047'   00              +             db      0
+  0048'   00              +             db      0
+  0049'   00              +             db      0
+  004A'   00              +             db      0
+  004B'   00              +             db      0
+  004C'   00              +             db      0
+  004D'   00              +             db      0
+  004E'   00              +             db      0
+  004F'   00              +             db      0
+  0050'   00                    t0:     nop
+                                        end
+^LTwo Pages     MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0050'   T0              
+
+
+
+No Fatal error(s)
+
+
+

@@ -1,0 +1,36 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; C_LD: the pairs, SP and the index registers. "ld hl,(nn)" is THREE
+                                ; bytes and every other pair is four: 2Ah exists for HL alone, and
+                                ; choosing wrongly here is a wrong LENGTH, not a wasted byte
+  0000'                                 aseg
+                                        org     0
+  0000    01 1234               t0:     ld      bc,1234h
+  0003    31 1234               t1:     ld      sp,1234h
+  0006    2A 1234               t2:     ld      hl,(1234h)
+  0009    ED 5B 1234            t3:     ld      de,(1234h)
+  000D    ED 7B 1234            t4:     ld      sp,(1234h)
+  0011    F9                    t5:     ld      sp,hl
+  0012    DD F9                 t6:     ld      sp,ix
+  0014    DD 21 1234            t7:     ld      ix,1234h
+  0018    FD 2A 1234            t8:     ld      iy,(1234h)
+  001C    00                    t9:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000    T0              0003    T1              0006    T2              
+0009    T3              000D    T4              0011    T5              
+0012    T6              0014    T7              0018    T8              
+001C    T9              
+
+
+
+No Fatal error(s)
+
+
+

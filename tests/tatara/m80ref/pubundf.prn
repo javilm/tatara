@@ -1,0 +1,22 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; 045: PUBLIC promises a name that nothing defines. Expect errpund -
+                                ; and note it needs an OBJECT FILE to be named, because the check lives
+                                ; in the PUBDEF walk
+U                                       public  foo
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000IU  FOO             
+
+
+
+1 Fatal error(s)
+
+
+

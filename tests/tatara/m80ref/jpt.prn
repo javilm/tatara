@@ -1,0 +1,28 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; JP: three bytes to an address, one to (HL), two to (IX)
+  0000'   C3 1234               t0:     jp      1234h
+  0003'   C2 1234               t1:     jp      nz,1234h
+  0006'   FA 1234               t2:     jp      m,1234h
+  0009'   E9                    t3:     jp      (hl)
+  000A'   DD E9                 t4:     jp      (ix)
+  000C'   FD E9                 t5:     jp      (iy)
+  000E'   00                    t6:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000'   T0              0003'   T1              0006'   T2              
+0009'   T3              000A'   T4              000C'   T5              
+000E'   T6              
+
+
+
+No Fatal error(s)
+
+
+

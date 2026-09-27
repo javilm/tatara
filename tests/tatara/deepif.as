@@ -1,0 +1,36 @@
+; 17 nested conditionals; MAXCND is 16
+	if1
+	if1
+	if1
+	if1
+	if1
+	if1
+	if1
+	if1
+	if1
+	if1
+	if1
+	if1
+	if1
+	if1
+	if1
+	if1
+	if1
+	db	1
+	endif
+	endif
+	endif
+	endif
+	endif
+	endif
+	endif
+	endif
+	endif
+	endif
+	endif
+	endif
+	endif
+	endif
+	endif
+	endif
+	endif

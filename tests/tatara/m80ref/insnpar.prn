@@ -1,0 +1,22 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; parentheses are grouping, so "cp (foo)" means "cp foo"
+  0005                          foo     equ     5
+  0000'   FE 05                 t0:     cp      (foo)
+  0002'   00                    t1:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0005    FOO             0000'   T0              0002'   T1              
+
+
+
+No Fatal error(s)
+
+
+

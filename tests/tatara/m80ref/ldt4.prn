@@ -1,0 +1,30 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; the sixteen-bit forms, and HL's short ones
+  0000'   01 1234               t0:     ld      bc,1234h
+  0003'   DD 21 5678            t1:     ld      ix,5678h
+  0007'   2A 1000               t2:     ld      hl,(1000h)
+  000A'   ED 5B 1002            t3:     ld      de,(1002h)
+  000E'   22 1004               t4:     ld      (1004h),hl
+  0011'   ED 73 1006            t5:     ld      (1006h),sp
+  0015'   F9                    t6:     ld      sp,hl
+  0016'   FD F9                 t7:     ld      sp,iy
+  0018'   C9                    t8:     ret
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000'   T0              0003'   T1              0007'   T2              
+000A'   T3              000E'   T4              0011'   T5              
+0015'   T6              0016'   T7              0018'   T8              
+
+
+
+No Fatal error(s)
+
+
+

@@ -1,0 +1,13 @@
+; the assembler's own modules, for TANREN. Nineteen real names
+; do not fit in a 127-character command line - which is what [R10]
+; is about, and this is the first thing that needed them.
+
+tatara.tro				; the driver
+cmdline.tro srcline.tro fields.tro	; the front
+dirtab.tro macros.tro expand.tro	; directives and macros
+cond.tro expr.tro			; conditionals and expressions
+symtab.tro optab.tro insn.tro		; the tables and the back end
+emit.tro objout.tro errs.tro
+
+msxdos.tro strutil.tro alloc.tro hash.tro	; shared
+

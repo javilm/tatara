@@ -1,0 +1,30 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; the two classes with no operands at all
+  0000'                                 aseg
+                                        org     0
+  0000    00                    t0:     nop
+  0001    76                    t1:     halt
+  0002    D9                    t2:     exx
+  0003    ED 44                 t3:     neg
+  0005    ED B0                 t4:     ldir
+  0007    ED BB                 t5:     otdr
+  0009    00                    t6:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000    T0              0001    T1              0002    T2              
+0003    T3              0005    T4              0007    T5              
+0009    T6              
+
+
+
+No Fatal error(s)
+
+
+

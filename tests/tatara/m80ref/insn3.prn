@@ -1,0 +1,26 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; the ALU group: a register, (HL), an indexed operand, a number
+  0000'   A0                    t0:     and     b
+  0001'   A6                    t1:     and     (hl)
+  0002'   DD A6 05              t2:     and     (ix+5)
+  0005'   E6 07                 t3:     and     7
+  0007'   FD AE FF              t4:     xor     (iy-1)
+  000A'   BF                    t5:     cp      a
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000'   T0              0001'   T1              0002'   T2              
+0005'   T3              0007'   T4              000A'   T5              
+
+
+
+No Fatal error(s)
+
+
+

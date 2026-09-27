@@ -1,0 +1,28 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; the accumulator's own forms: (BC), (DE), (nn), I and R
+  0000'   0A                    t0:     ld      a,(bc)
+  0001'   12                    t1:     ld      (de),a
+  0002'   3A 1234               t2:     ld      a,(1234h)
+  0005'   32 5678               t3:     ld      (5678h),a
+  0008'   ED 57                 t4:     ld      a,i
+  000A'   ED 4F                 t5:     ld      r,a
+  000C'   C9                    t6:     ret
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000'   T0              0001'   T1              0002'   T2              
+0005'   T3              0008'   T4              000A'   T5              
+000C'   T6              
+
+
+
+No Fatal error(s)
+
+
+

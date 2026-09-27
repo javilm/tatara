@@ -1,0 +1,33 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; C_LD: indexed, in both directions. t2 is the one form that emits
+                                ; from BOTH operands - the displacement from the destination and the
+                                ; immediate from the source - and t5 is a bare "(ix)", which is
+                                ; "(ix+0)" and the first test to write one
+  0000'                                 aseg
+                                        org     0
+  0000    DD 46 05              t0:     ld      b,(ix+5)
+  0003    DD 70 05              t1:     ld      (ix+5),b
+  0006    DD 36 05 42           t2:     ld      (ix+5),42h
+  000A    FD 4E FF              t3:     ld      c,(iy-1)
+  000D    FD 71 FF              t4:     ld      (iy-1),c
+  0010    DD 7E 00              t5:     ld      a,(ix)
+  0013    00                    t6:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000    T0              0003    T1              0006    T2              
+000A    T3              000D    T4              0010    T5              
+0013    T6              
+
+
+
+No Fatal error(s)
+
+
+

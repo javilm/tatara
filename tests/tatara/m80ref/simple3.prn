@@ -1,0 +1,31 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; C_ALUA: the 8-bit form, and the three 16-bit ones
+  0000'                                 aseg
+                                        org     0
+  0000    80                    t0:     add     a,b
+  0001    19                    t1:     add     hl,de
+  0002    ED 5A                 t2:     adc     hl,de
+  0004    ED 72                 t3:     sbc     hl,sp
+  0006    DD 09                 t4:     add     ix,bc
+  0008    DD 29                 t5:     add     ix,ix
+  000A    DD 8E 00              t6:     adc     a,(ix+0)
+  000D    00                    t7:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000    T0              0001    T1              0002    T2              
+0004    T3              0006    T4              0008    T5              
+000A    T6              000D    T7              
+
+
+
+No Fatal error(s)
+
+
+

@@ -1,0 +1,29 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; unary plus. An index displacement is remembered WITH its sign, so
+                                ; the evaluator is handed "+5" as readily as "-1" - and it had the
+                                ; minus and not the plus
+  0000'                                 aseg
+                                        org     0
+  0000    01                    t0:     db      +1
+  0001    1234                  t1:     dw      +1234h
+  0003    DD A6 05              t2:     and     (ix+5)
+  0006    DD A6 FB              t3:     and     (ix-5)
+  0009    00                    t4:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000    T0              0001    T1              0003    T2              
+0006    T3              0009    T4              
+
+
+
+No Fatal error(s)
+
+
+

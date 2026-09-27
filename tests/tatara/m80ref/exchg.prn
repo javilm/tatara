@@ -1,0 +1,27 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; EX: one byte, except through an index register. The apostrophe in
+                                ; af' reaches the operand parser only because of 030's splitln fix
+  0000'   EB                    t0:     ex      de,hl
+  0001'   08                    t1:     ex      af,af'
+  0002'   E3                    t2:     ex      (sp),hl
+  0003'   DD E3                 t3:     ex      (sp),ix
+  0005'   FD E3                 t4:     ex      (sp),iy
+  0007'   00                    t5:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000'   T0              0001'   T1              0002'   T2              
+0003'   T3              0005'   T4              0007'   T5              
+
+
+
+No Fatal error(s)
+
+
+

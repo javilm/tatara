@@ -1,0 +1,5 @@
+; a response file that names another one. D2 refuses it, and
+; this is the file that proves the error arrives instead of a
+; recursion.
+ok.tro @ok.lnk
+

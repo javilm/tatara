@@ -1,0 +1,31 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; INC and DEC in both widths, then PUSH and POP
+  0000'                                 aseg
+                                        org     0
+  0000    04                    t0:     inc     b
+  0001    35                    t1:     dec     (hl)
+  0002    DD 34 01              t2:     inc     (ix+1)
+  0005    03                    t3:     inc     bc
+  0006    FD 2B                 t4:     dec     iy
+  0008    F5                    t5:     push    af
+  0009    DD E1                 t6:     pop     ix
+  000B    00                    t7:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000    T0              0001    T1              0002    T2              
+0005    T3              0006    T4              0008    T5              
+0009    T6              000B    T7              
+
+
+
+No Fatal error(s)
+
+
+

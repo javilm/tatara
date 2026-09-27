@@ -1,0 +1,22 @@
+ABC     MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; 056 D1: a title of THREE characters. Does the version still start at
+                                ; column 8, or at 3+4=7? M80 answers; nothing else can.
+                                        title   ABC
+  0000'   00                    t0:     nop
+                                        end
+^LABC   MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000'   T0              
+
+
+
+No Fatal error(s)
+
+
+

@@ -1,0 +1,28 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; DB and DW, emitting: numbers, strings, and a character constant
+  0000'                                 aseg
+                                        org     0
+  0000    01 02 03              t0:     db      1,2,3
+  0003    61 62 63              t1:     db      'abc'
+  0006    42                    t2:     db      'A'+1
+  0007    1234                  t3:     dw      1234h
+  0009    4142                  t4:     dw      'AB'
+  000B    00                    t5:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000    T0              0003    T1              0006    T2              
+0007    T3              0009    T4              000B    T5              
+
+
+
+No Fatal error(s)
+
+
+

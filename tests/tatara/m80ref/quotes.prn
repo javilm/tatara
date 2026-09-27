@@ -1,0 +1,33 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; character constants in both delimiters. DB has taken "..." since 029
+                                ; and the evaluator had only ever been given the apostrophe, so "db
+                                ; ""A""" assembled and "cp ""A""" did not - in the same assembler, on
+                                ; the same character
+  0000'                                 aseg
+                                        org     0
+  0000    FE 20                 t0:     cp      " "
+  0002    FE 41                 t1:     cp      'A'
+  0004    FE 41                 t2:     cp      "A"
+  0006    21 4142               t3:     ld      hl,"AB"
+  0009    22                    t4:     db      """"
+  000A    27                    t5:     db      ''''
+  000B    00                    t6:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000    T0              0002    T1              0004    T2              
+0006    T3              0009    T4              000A    T5              
+000B    T6              
+
+
+
+No Fatal error(s)
+
+
+

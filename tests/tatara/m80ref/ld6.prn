@@ -1,0 +1,25 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; the first INSTRUCTION to carry a relocatable operand. 034 proved
+                                ; emitxw on a DW; this is the same routine with a different caller,
+                                ; and the listing marks both addresses
+  0000'                                 cseg
+  0000'   21 0006'              t0:     ld      hl,t2
+  0003'   32 0006'              t1:     ld      (t2),a
+  0006'   00                    t2:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000'   T0              0003'   T1              0006'   T2              
+
+
+
+No Fatal error(s)
+
+
+

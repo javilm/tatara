@@ -1,0 +1,14 @@
+; TWOMOD.LNK - the link, in a file instead of on the command line.
+;
+; TANREN reads this when it is given @TWOMOD, and the words in it are
+; the words it would have read from the command line. A ; starts a
+; comment and the rest of the line is ignored.
+;
+; MSX-DOS gives a command line 127 characters and cuts a longer one
+; without saying so. That is the whole reason this exists: the
+; assembler is itself linked from a file of nineteen module names.
+
+/o:twomod.com
+
+main.tro putstr.tro
+

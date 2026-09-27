@@ -1,0 +1,9 @@
+; a response file. This is what [R10] is for - and it is also
+; what the file's syntax has to survive: a comment on its own line,
+; a comment after a name, a blank line, spaces and tabs, and more
+; than one word on a line.
+
+ok.tro second.tro	; the two that print
+
+putstr.tro		; and the one they both call
+

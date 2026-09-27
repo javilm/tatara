@@ -1,0 +1,31 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; RET with a condition and without, then RST and IM
+  0000'                                 aseg
+                                        org     0
+  0000    C9                    t0:     ret
+  0001    C8                    t1:     ret     z
+  0002    F8                    t2:     ret     m
+  0003    FF                    t3:     rst     38h
+  0004    ED 46                 t4:     im      0
+  0006    ED 56                 t5:     im      1
+  0008    ED 5E                 t6:     im      2
+  000A    00                    t7:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000    T0              0001    T1              0002    T2              
+0003    T3              0004    T4              0006    T5              
+0008    T6              000A    T7              
+
+
+
+No Fatal error(s)
+
+
+

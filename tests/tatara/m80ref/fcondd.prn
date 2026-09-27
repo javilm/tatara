@@ -1,0 +1,23 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; 052: and the same with nothing said at all, which is the default
+                                        if      0
+                                        db      1
+                                        endif
+  0000'   03                    t0:     db      3
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000'   T0              
+
+
+
+No Fatal error(s)
+
+
+

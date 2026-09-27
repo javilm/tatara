@@ -1,0 +1,21 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; 050: .XLIST stops the listing, .LIST starts it again
+  0000'   01                            db      1
+                                        .list
+  0002'   03                            db      3
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+
+
+
+No Fatal error(s)
+
+
+

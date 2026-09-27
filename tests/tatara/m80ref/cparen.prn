@@ -1,0 +1,25 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; (c) is an ADDRESS to LD and GROUPING to CP, and a kind of its own to
+                                ; neither. M80 makes the first line 3A 0005
+  0005                          c       equ     5
+  0000'   3A 0005               t0:     ld      a,(c)
+  0003'   FE 05                 t1:     cp      (c)
+  0005'   00                    t2:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0005    C               0000'   T0              0003'   T1              
+0005'   T2              
+
+
+
+No Fatal error(s)
+
+
+

@@ -1,0 +1,25 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; a displacement between two contributions is not a number: the linker
+                                ; places them independently and no record can fix up a relative byte.
+                                ; Tatara says errrel and M80 has the casting vote
+  0000'                                 cseg
+R 0000'   18 02                 t0:     jr      t1
+  0002'                                 dseg
+  0000"                         t1:     ds      1
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000'   T0              0000"   T1              
+
+
+
+1 Fatal error(s)
+
+
+

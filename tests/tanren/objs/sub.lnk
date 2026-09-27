@@ -1,0 +1,6 @@
+; TESTS\TANREN\OBJS\SUB.LNK - It names its objects by BARE NAMES and
+; they sit beside it, not in the directory the linker is run from.
+; Only the directory of the list itself can find them.
+
+suba.tro subb.tro
+

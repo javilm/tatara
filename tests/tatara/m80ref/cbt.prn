@@ -1,0 +1,29 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; the CB group: two bytes, four when the operand is indexed
+  0000'   CB 00                 t0:     rlc     b
+  0002'   CB 0E                 t1:     rrc     (hl)
+  0004'   CB 3F                 t2:     srl     a
+  0006'   DD CB 05 16           t3:     rl      (ix+5)
+  000A'   CB 7F                 t4:     bit     7,a
+  000C'   CB 86                 t5:     res     0,(hl)
+  000E'   FD CB FF DE           t6:     set     3,(iy-1)
+  0012'   00                    t7:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000'   T0              0002'   T1              0004'   T2              
+0006'   T3              000A'   T4              000C'   T5              
+000E'   T6              0012'   T7              
+
+
+
+No Fatal error(s)
+
+
+

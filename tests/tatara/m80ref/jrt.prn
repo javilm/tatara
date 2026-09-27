@@ -1,0 +1,29 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; JR, DJNZ and CALL: two bytes, two, and three
+  0000'   18 FE                 t0:     jr      t0
+  0002'   20 FC                 t1:     jr      nz,t0
+  0004'   38 FA                 t2:     jr      c,t0
+  0006'   10 F8                 t3:     djnz    t0
+  0008'   CD 1234               t4:     call    1234h
+  000B'   D4 1234               t5:     call    nc,1234h
+  000E'   EC 1234               t6:     call    pe,1234h
+  0011'   00                    t7:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000'   T0              0002'   T1              0004'   T2              
+0006'   T3              0008'   T4              000B'   T5              
+000E'   T6              0011'   T7              
+
+
+
+No Fatal error(s)
+
+
+

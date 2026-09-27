@@ -1,0 +1,24 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; the indexed forms are (HL) with a prefix and a displacement
+  0000'   DD 7E 05              t0:     ld      a,(ix+5)
+  0003'   FD 70 FF              t1:     ld      (iy-1),b
+  0006'   DD 36 00 09           t2:     ld      (ix+0),9
+  000A'   C9                    t3:     ret
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000'   T0              0003'   T1              0006'   T2              
+000A'   T3              
+
+
+
+No Fatal error(s)
+
+
+

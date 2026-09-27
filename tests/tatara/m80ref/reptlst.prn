@@ -1,0 +1,24 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; 053: does M80 list a REPT's body where it is defined, as it does a
+                                ; macro's? The expansions come after, under .XALL
+                                        rept    2
+                                        db      1
+                                        endm
+  0000'   01              +             db      1
+  0001'   01              +             db      1
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+
+
+
+No Fatal error(s)
+
+
+

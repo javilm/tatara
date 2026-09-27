@@ -1,0 +1,29 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; a line that emits more than the eight-byte column holds. Before 042
+                                ; the listing showed eight and a "+", and the rest were in the buffer
+                                ; but never printed
+  0000'                                 aseg
+                                        org     0
+  0000    41 42 43 44           t0:     db      "ABCDEFGHIJKLMNOPQRST"
+  0004    45 46 47 48           
+  0008    49 4A 4B 4C           
+  000C    4D 4E 4F 50           
+  0010    51 52 53 54           
+  0014    00                    t1:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000    T0              0014    T1              
+
+
+
+No Fatal error(s)
+
+
+

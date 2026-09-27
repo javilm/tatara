@@ -1,0 +1,24 @@
+.DS_Store
+
+# Products, not sources. Both tools truncate their output, so nothing
+# here needs cleaning up - it just must not be committed.
+*.tro
+*.com
+*.bin
+*.rom
+*.prn
+*.lst
+*.sym
+*.map
+results.txt
+results.old
+examples/names/insens.txt
+examples/names/sens.txt
+
+# ...except the pair we ship built, and the frozen M80 listings, which
+# are reference data rather than output.
+!build/tatara.com
+!build/tanren.com
+!tests/tatara/m80ref/*.prn
+
+

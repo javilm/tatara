@@ -1,0 +1,23 @@
+A Title Here    MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; 056 will need this: with a TITLE and a SUBTTL, which of the two blank
+                                ; lines under M80's header do they take?
+                                        title   A Title Here
+                                        subttl  And A Subtitle
+  0000'   00                    t0:     nop
+                                        end
+^LA Title Here  MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000'   T0              
+
+
+
+No Fatal error(s)
+
+
+

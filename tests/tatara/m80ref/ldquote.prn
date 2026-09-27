@@ -1,0 +1,21 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; a comma inside a character constant does not end the operand
+  0000'   32 002C               t0:     ld      (','),a
+  0003'   C9                    t1:     ret
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000'   T0              0003'   T1              
+
+
+
+No Fatal error(s)
+
+
+

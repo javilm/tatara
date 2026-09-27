@@ -1,0 +1,37 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; 050: the same macro called three times, once under each mode. What
+                                ; M80 keeps under each - and whether it lists the control line itself,
+                                ; and whether it flags the CALL line - is what this asks M80
+                                byte    macro   n
+                                        db      n
+                                        if      n
+                                        endif
+                                        endm
+                                        .lall
+  0000'                         t0:     byte    1
+  0000'   01              +             db      1
+                          +             if      1
+                          +             endif
+                                        .xall
+                                        byte    2
+  0001'   02              +             db      2
+                                        .sall
+                          +             byte    3
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+BYTE            
+
+Symbols:
+0000'   T0              
+
+
+
+No Fatal error(s)
+
+
+

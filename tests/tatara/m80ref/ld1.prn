@@ -1,0 +1,36 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; C_LD: the destination is a register or (HL). Register code 6 IS
+                                ; (HL), which is why "ld (hl),(hl)" has to be refused: that encoding
+                                ; is HALT
+  0000'                                 aseg
+                                        org     0
+  0000    41                    t0:     ld      b,c
+  0001    46                    t1:     ld      b,(hl)
+  0002    70                    t2:     ld      (hl),b
+  0003    06 05                 t3:     ld      b,5
+  0005    36 05                 t4:     ld      (hl),5
+  0007    0A                    t5:     ld      a,(bc)
+  0008    1A                    t6:     ld      a,(de)
+  0009    02                    t7:     ld      (bc),a
+  000A    12                    t8:     ld      (de),a
+  000B    00                    t9:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000    T0              0001    T1              0002    T2              
+0003    T3              0005    T4              0007    T5              
+0008    T6              0009    T7              000A    T8              
+000B    T9              
+
+
+
+No Fatal error(s)
+
+
+

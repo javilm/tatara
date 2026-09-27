@@ -1,0 +1,12 @@
+# Git must NEVER touch line endings in this project.
+#
+# Every file the MSX reads is CR+LF and has to stay that way byte for
+# byte - see CLAUDE.md, "File rule: anything the MSX reads is CR+LF". A
+# source file silently converted to LF assembles as one enormous line and
+# reports "Unterminated macro constuction", which says nothing about line
+# endings. That has cost an evening once already.
+#
+# "-text" means: no conversion, in either direction, ever. Store and check
+# out exactly the bytes that are here.
+
+* -text

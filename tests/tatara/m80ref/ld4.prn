@@ -1,0 +1,32 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; C_LD: the destination is an address. The same asymmetry as LD3 the
+                                ; other way round - 22h is HL alone - and the address is the
+                                ; DESTINATION's expression, remembered before the source was parsed
+  0000'                                 aseg
+                                        org     0
+  0000    32 1234               t0:     ld      (1234h),a
+  0003    22 1234               t1:     ld      (1234h),hl
+  0006    ED 43 1234            t2:     ld      (1234h),bc
+  000A    ED 73 1234            t3:     ld      (1234h),sp
+  000E    DD 22 1234            t4:     ld      (1234h),ix
+  0012    3A 1234               t5:     ld      a,(1234h)
+  0015    00                    t6:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000    T0              0003    T1              0006    T2              
+000A    T3              000E    T4              0012    T5              
+0015    T6              
+
+
+
+No Fatal error(s)
+
+
+

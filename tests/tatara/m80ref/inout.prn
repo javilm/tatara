@@ -1,0 +1,26 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; IN and OUT: two bytes, and the port decides which register is legal
+  0000'   DB AA                 t0:     in      a,(0aah)
+  0002'   ED 40                 t1:     in      b,(c)
+  0004'   ED 78                 t2:     in      a,(c)
+  0006'   D3 AA                 t3:     out     (0aah),a
+  0008'   ED 59                 t4:     out     (c),e
+  000A'   00                    t5:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000'   T0              0002'   T1              0004'   T2              
+0006'   T3              0008'   T4              000A'   T5              
+
+
+
+No Fatal error(s)
+
+
+

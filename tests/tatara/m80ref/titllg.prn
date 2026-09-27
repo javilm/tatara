@@ -1,0 +1,22 @@
+ABCDEFGHIJKLMNOPQRST    MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; 056 D1: and a title of TWENTY, where "pad to twelve" and "length
+                                ; plus four" cannot both be right.
+                                        title   ABCDEFGHIJKLMNOPQRST
+  0000'   00                    t0:     nop
+                                        end
+^LABCDEFGHIJKLMNOPQRST  MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000'   T0              
+
+
+
+No Fatal error(s)
+
+
+

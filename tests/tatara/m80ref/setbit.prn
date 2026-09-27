@@ -1,0 +1,28 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; SET is the bit instruction and ONLY that. M80 has no SET pseudo-op
+                                ; in .Z80 mode - "foo set 5" is a fatal error there - and DEFL is the
+                                ; redefinable symbol. 033 assumed the opposite and M80 said no
+  0005                          foo     defl    5
+  0000'   CB FF                 t0:     set     7,a
+  0002'   CB C8                         set     1,b
+  0004'   CB C6                 t1:     set     0,(hl)
+  0007                          foo     defl    7
+  0006'   00                    t2:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0007    FOO             0000'   T0              0004'   T1              
+0006'   T2              
+
+
+
+No Fatal error(s)
+
+
+

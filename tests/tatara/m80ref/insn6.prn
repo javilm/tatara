@@ -1,0 +1,26 @@
+        MSX.M-80 2.00   27-Sep-26       PAGE    1
+
+
+                                ; RET is one byte with a condition or without one
+  0000'   C9                    t0:     ret
+  0001'   C8                    t1:     ret     z
+  0002'   C0                    t2:     ret     nz
+  0003'   E0                    t3:     ret     po
+  0004'   F8                    t4:     ret     m
+  0005'   00                    t5:     nop
+                                        end
+^L      MSX.M-80 2.00   27-Sep-26       PAGE    S
+
+
+Macros:
+
+Symbols:
+0000'   T0              0001'   T1              0002'   T2              
+0003'   T3              0004'   T4              0005'   T5              
+
+
+
+No Fatal error(s)
+
+
+
