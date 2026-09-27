@@ -10,3 +10,5 @@
 # out exactly the bytes that are here.
 
 * -text
+*.as linguist-language=Assembly
+*.inc linguist-language=Assembly
