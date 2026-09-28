@@ -30,10 +30,11 @@
 
 ; --- The BDOS entry, and a macro for calling it.
 ;
-; The macro is wrapped in IFNDEF so that a program whose modules each
-; include this file assembles: the second time through, the macro is
-; already defined and the block is skipped. MSXDOS_INC is the sentinel
-; and has no other use.
+; DO NOT WRAP THE MACRO IN IFNDEF. A guard keyed on a symbol fires
+; once per PROGRAM, because a symbol defined on pass 1 is still
+; defined on pass 2, but a macro has to be defined once per PASS.
+; A guarded macro simply vanishes on pass 2. Repeating a MACRO is
+; legal and replaces the definition, so nothing needs protecting.
 ;
 ; "system" loads C and calls BDOS, so it costs you C and whatever the
 ; function itself destroys, and nothing more. IT ALWAYS CALLS 0005h -
@@ -42,13 +43,10 @@
 
 BDOS		equ	0005h	; the MSX-DOS function call entry
 
-		ifndef	MSXDOS_INC
-MSXDOS_INC	equ	1	; this file has been included once
 system		macro	func
 		ld	c,func
 		call	BDOS
 		endm
-		endif
 
 ; --- Console, printer and the auxiliary device.
 
@@ -195,4 +193,3 @@ _DSKCHK		equ	6eh	; get or set whether disk change is checked
 _DOSVER		equ	6fh	; the MSX-DOS version numbers
 _REDIR		equ	70h	; get or set the redirection state
 
-

@@ -2,7 +2,7 @@ include\ - header files for MSX programs
 ========================================
 
 These are equates, not code. Nothing in this directory is built into
-Tatara or TANREN; it is here for the programs you write with them. Put
+Tatara or Tanren; it is here for the programs you write with them. Put
 the directory where the TATARA environment variable points, and include
 what you need:
 
@@ -29,7 +29,7 @@ and says why.
                            and later
   workarea.inc        311  the system work area, 0F323h to 0FFFFh
 
-904 names in all.
+903 names in all.
 
 
 THINGS WORTH KNOWING BEFORE YOU INCLUDE ONE
@@ -51,4 +51,3 @@ Two hooks have two names. MSX-MIDI renamed 0FF75h and 0FF93h, and
 hooks.inc carries the old name and the new one for each. They are the
 same five bytes, not four hooks.
 
-

@@ -1,6 +1,6 @@
 # include/ - header files for MSX programs
 
-These are equates, not code. Nothing in this directory is built into Tatara or TANREN; it is here for the programs you write with them. Put the directory where the `TATARA` environment variable points, and include what you need:
+These are equates, not code. Nothing in this directory is built into Tatara or Tanren; it is here for the programs you write with them. Put the directory where the `TATARA` environment variable points, and include what you need:
 
 ```
 	include	msxdos.inc
@@ -20,7 +20,7 @@ Where the MSX has an official name, that is the name here, taken from the MSX Da
 | `subrom.inc` | 36 | SUB ROM entry points, 0089h to 01F9h, MSX2 and later |
 | `workarea.inc` | 311 | the system work area, 0F323h to 0FFFFh |
 
-904 names in all.
+903 names in all.
 
 ## Things worth knowing before you include one
 
