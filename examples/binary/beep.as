@@ -11,8 +11,8 @@
 ;
 ; There is no MSX-DOS here, so the printing is the BIOS.
 
-CHPUT		equ	00a2h		; BIOS: print the character in A
-BEEP		equ	00c0h		; BIOS: the beep
+		include	bios.inc	; CHPUT, BEEP, and every other
+					;   MAIN ROM entry
 
 		aseg
 		org	8000h		; above BASIC in a 64 KB machine

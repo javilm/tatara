@@ -12,6 +12,12 @@ rem THIS IS THE ONE EXAMPLE A SUCCESSFUL BUILD DOES NOT PROVE. Load
 rem ROM.ROM as a cartridge in an emulator, or write it to a flash
 rem cartridge. It is not a program whose name you can type.
 
+rem The headers are in A:\TATARA\INCLUDE and are not copied here.
+rem TATARA is rule 3 of the include search - see the DIRS example.
+rem CHANGE THE PATH BELOW if you put the tree somewhere else.
+
+set TATARA=a:\tatara\include
+
 echo === Assembling
 tatara /q rom.as rom.tro
 
@@ -19,4 +25,6 @@ echo === Linking, with no header of any kind
 tanren /q /o:rom.rom rom.tro
 
 echo === Done. ROM.ROM should be exactly 16384 bytes.
+
+set TATARA=
 

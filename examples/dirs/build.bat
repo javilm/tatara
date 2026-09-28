@@ -13,10 +13,10 @@ rem batch file no way to ask where it is, so change this line if you
 rem put the tree somewhere else.
 rem
 rem Under MSX-DOS 1 there are no environment variables, and rules 1
-rem and 2 are all there is. Move LIB\SYSMSG.INC in beside MAIN.AS and
-rem the example builds there too.
+rem and 2 are all there is. Move LIB\SYSMSG.INC and MSXDOS.INC in
+rem beside MAIN.AS and the example builds there too.
 
-set TATARA=a:\tatara\repo\examples\dirs\lib
+set TATARA=a:\tatara\include;a:\tatara\examples\dirs\lib
 
 echo === Assembling SRC\MAIN.AS
 tatara /q src\main.as dirs.tro

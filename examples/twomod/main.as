@@ -6,8 +6,7 @@
 
 		extrn	putstr		; defined in PUTSTR.AS
 
-BDOS		equ	0005h
-_TERM0		equ	00h
+		include	msxdos.inc	; BDOS and _TERM0
 
 		cseg
 

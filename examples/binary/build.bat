@@ -12,6 +12,12 @@ rem what a ROM needs - see the ROM example.
 rem
 rem To run it, from BASIC:  BLOAD then the file name in quotes, ,R
 
+rem The headers are in A:\TATARA\INCLUDE and are not copied here.
+rem TATARA is rule 3 of the include search - see the DIRS example.
+rem CHANGE THE PATH BELOW if you put the tree somewhere else.
+
+set TATARA=a:\tatara\include
+
 echo === Assembling
 tatara /q beep.as beep.tro
 
@@ -19,4 +25,6 @@ echo === Linking, with a BLOAD header
 tanren /q /b /o:beep.bin beep.tro
 
 echo === Done. BEEP.BIN is 7 bytes of header and the rest is code.
+
+set TATARA=
 

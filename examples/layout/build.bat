@@ -14,6 +14,12 @@ rem code in the top pages with its variables above it, and not
 rem something MSX-DOS can run as a command, so it goes to a .BIN that
 rem nobody is asked to run.
 
+rem The headers are in A:\TATARA\INCLUDE and are not copied here.
+rem TATARA is rule 3 of the include search - see the DIRS example.
+rem CHANGE THE PATH BELOW if you put the tree somewhere else.
+
+set TATARA=a:\tatara\include
+
 echo === Assembling, keeping the symbol table
 tatara /q /s layout.as layout.tro > layout.sym
 
@@ -24,4 +30,6 @@ echo === Linking again, code at 8000h and data at C000h
 tanren /q /m /o:layout8.bin /p:8000 /d:c000 layout.tro > layout8.map
 
 echo === Done. Read LAYOUT.SYM, LAYOUT.MAP and LAYOUT8.MAP.
+
+set TATARA=
 

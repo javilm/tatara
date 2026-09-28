@@ -14,10 +14,8 @@
 					;   relative to THIS file
 		include	sysmsg.inc	; rule 3: TATARA names the
 					;   directory it is in
-
-BDOS		equ	0005h
-_STROUT		equ	09h
-_TERM0		equ	00h
+		include	msxdos.inc	; rule 3 as well, from the OTHER
+					;   directory in TATARA
 
 		cseg
 

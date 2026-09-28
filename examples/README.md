@@ -12,8 +12,8 @@ Both tools have to be on the `PATH`. `BUILD.BAT` is run from the
 example's own directory:
 
 ```
-A:\> cd examples\hello
-A:\EXAMPLES\HELLO> build
+A:\> cd tatara\examples\hello
+A:\TATARA\EXAMPLES\HELLO> build
 ```
 
 | directory | what it shows |
@@ -32,6 +32,13 @@ can type the name of. `names` leaves two text files to compare.
 `binary` leaves a file for `BLOAD`. `rom` leaves a cartridge image,
 and it is the only one whose result a successful build does not show
 you - load it in an emulator.
+
+The examples do not define BIOS or MSX-DOS equates of their own. They
+include `msxdos.inc` and `bios.inc` from `include/`, which each
+`BUILD.BAT` finds by putting `A:\TATARA\INCLUDE` in the `TATARA`
+variable and clearing it again afterwards. **The path in those scripts
+is absolute**, because MSX-DOS gives a batch file no way to ask where it
+is - change it if the tree is somewhere other than `A:\TATARA\`.
 
 The build products are not kept in this repository. Run the script.
 

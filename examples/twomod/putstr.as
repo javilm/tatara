@@ -6,8 +6,7 @@
 
 		public	putstr
 
-BDOS		equ	0005h
-_CONOUT		equ	02h		; print the character in E
+		include	msxdos.inc	; BDOS, _CONOUT and "system"
 
 		cseg
 
@@ -25,8 +24,7 @@ putstr:		ld	a,(hl)
 		ret	z
 		push	hl
 		ld	e,a
-		ld	c,_CONOUT
-		call	BDOS
+		system	_CONOUT
 		pop	hl
 		inc	hl
 		jr	putstr

@@ -15,6 +15,12 @@ rem
 rem It is assembled twice, to two listings, so the two can be read
 rem side by side.
 
+rem The headers are in A:\TATARA\INCLUDE and are not copied here.
+rem TATARA is rule 3 of the include search - see the DIRS example.
+rem CHANGE THE PATH BELOW if you put the tree somewhere else.
+
+set TATARA=a:\tatara\include
+
 echo === Assembling, listing under the default XALL
 tatara /q /l macros.as macros.tro macxall.lst
 
@@ -25,4 +31,6 @@ echo === Linking
 tanren /q /o:macros.com macros.tro
 
 echo === Done. Compare MACXALL.LST with MACLALL.LST, then type MACROS.
+
+set TATARA=
 

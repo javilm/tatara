@@ -19,17 +19,14 @@
 ; address in a .COM would make the file span everything from 0100h up
 ; to it.
 
-BDOS		equ	0005h
-_STROUT		equ	09h
-_TERM0		equ	00h
+		include	msxdos.inc	; BDOS, _STROUT, _TERM0 and "system"
 
 		cseg
 
 start:		ld	hl,runs		; a byte in the plain DSEG
 		inc	(hl)
 		ld	de,msg
-		ld	c,_STROUT
-		call	BDOS
+		system	_STROUT
 		ld	c,_TERM0
 		jp	BDOS
 

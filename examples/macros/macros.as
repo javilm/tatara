@@ -3,17 +3,14 @@
 ; MACRO defines one, ENDM ends the definition, and the name is then
 ; used like a mnemonic. LOCAL, REPT and IRP are below.
 
-BDOS		equ	0005h
-_STROUT		equ	09h
-_TERM0		equ	00h
+		include	msxdos.inc	; BDOS, _STROUT, _TERM0 and "system"
 
 ; PRINT - three instructions from one line. The parameter is
 ; substituted wherever the name appears in the body.
 
 print		macro	addr
 		ld	de,addr
-		ld	c,_STROUT
-		call	BDOS
+		system	_STROUT	; a macro inside a macro
 		endm
 
 ; DELAY - and why LOCAL exists. The body has a label in it, and a

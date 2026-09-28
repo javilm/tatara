@@ -3,9 +3,9 @@
 ; One source, one object, one .COM. It prints a line and gives the
 ; machine back to MSX-DOS.
 
-BDOS		equ	0005h		; where MSX-DOS is called
-_STROUT		equ	09h		; print the string at DE, up to a $
-_TERM0		equ	00h		; terminate, no error
+		include	msxdos.inc	; BDOS, _STROUT, _TERM0 and the
+					;   "system" macro, found through
+					;   TATARA - see BUILD.BAT
 
 		cseg			; RELOCATABLE code. Nothing here
 					;   knows its own address, and the
@@ -13,8 +13,7 @@ _TERM0		equ	00h		; terminate, no error
 					;   .COM, unless /P: says otherwise
 
 start:		ld	de,msg
-		ld	c,_STROUT
-		call	BDOS
+		system	_STROUT
 		ld	c,_TERM0
 		jp	BDOS
 

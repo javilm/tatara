@@ -15,8 +15,7 @@
 ; to be. A DS would not do it: the space a DS reserves after the last
 ; byte of content is deliberately not in the file.
 
-INITXT		equ	006ch		; BIOS: the 40-column text screen
-CHPUT		equ	00a2h		; BIOS: print the character in A
+		include	bios.inc	; INITXT, CHPUT, and the rest
 
 		aseg
 		org	4000h
