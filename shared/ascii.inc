@@ -13,9 +13,6 @@ CHR_ACK		equ	6		; acknowledge (Ctrl-F)
 CHR_BEL		equ	7		; bell/beep (Ctrl-G)
 CHR_BS		equ	8		; backspace (Ctrl-H)
 CHR_TAB		equ	9		; horizontal tab (Ctrl-I)
-CHR_FF		equ	12		; form feed (Ctrl-L): the page break
-					;   M80 puts before every header but
-					;   the first
 CHR_LF		equ	10		; line feed (Ctrl-J)
 CHR_VT		equ	11		; vertical tab (Ctrl-K)
 CHR_FF		equ	12		; form feed / clear screen (Ctrl-L)
@@ -38,7 +35,7 @@ CHR_FS		equ	28		; file separator
 CHR_GS		equ	29		; group separator
 CHR_RS		equ	30		; record separator
 CHR_US		equ	31		; unit separator
-CHR_SPACE		equ	32		; space
+CHR_SPACE	equ	32		; space
 
 ; Aliases for codes with a second, more meaningful name in MSX-DOS/CP/M
 

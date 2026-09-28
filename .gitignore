@@ -14,6 +14,7 @@ results.txt
 results.old
 examples/names/insens.txt
 examples/names/sens.txt
+dist/
 
 # ...except the pair we ship built, and the frozen M80 listings, which
 # are reference data rather than output.

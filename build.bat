@@ -4,7 +4,7 @@ rem SILENCE IS SUCCESS. /Q prints nothing for a module that works and
 rem errors print anyway, so anything on the screen between the ===
 rem lines is a problem.
 
-set TATARA=a:\tatara\repo\shared
+set TATARA=shared\
 
 
 echo === Assembling TATARA modules...
@@ -46,4 +46,3 @@ tanren /o:build\tanren.com @tanren.lnk
 
 echo === Cleaning up
 del *.tro
-
