@@ -7,7 +7,7 @@
 top:		ld	a,1		; column 1, colon
 bare		ld	a,2		; column 1, no colon
 	mid:	ld	a,3		; indented, colon
-	pub::	ld	a,4		; indented, "::" stepped over
+	pub::	ld	a,4		; indented, and PUBLIC (083)
 	only:				; indented, nothing after the colon
 		ld	a,5		; indented, no colon: an instruction
 

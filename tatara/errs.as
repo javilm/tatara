@@ -35,6 +35,7 @@ ERRSLIB		equ	1		; skips the externals in errs.inc
 		public	errsflg
 		public	errgrp
 		public	errngrp
+		public	errnlab
 		public	errmseg
 		public	errmdef
 		public	errext
@@ -220,6 +221,14 @@ errsflg:	ld  de,msg_sflg
 ; DSEG, without a name, or with a label in front of it. Does not return.
 errgrp:		ld  de,msg_grp
 		jp  errdie
+
+; errnlab - EQU, DEFL or MACRO with a colon after the name. A colon
+; makes the label field a location label (M80 2.3.1), and these three
+; take a name - so the pseudo-op is left with nothing to name. M80
+; calls it an O error and does not open a macro it refuses. Does not
+; return.
+errnlab:	ld	de,msg_nlab
+		jp	errdie
 
 ; errngrp - a label, DS or ORG inside a transient DSEG before any GROUP
 ; line. Its variables would belong to no group, and a group is the only
@@ -565,6 +574,8 @@ msg_sflg:	defb	"this segment was declared differently"
 		defb	" before.",CHR_CR,CHR_LF,"$"
 msg_grp:	defb	"GROUP needs a name, no label, and a"
 		defb	" transient DSEG.",CHR_CR,CHR_LF,"$"
+msg_nlab:	defb	"EQU, DEFL and MACRO take a name, not a"
+		defb	" label.",CHR_CR,CHR_LF,"$"
 msg_ngrp:	defb	"this transient DSEG needs a GROUP"
 		defb	" first.",CHR_CR,CHR_LF,"$"
 msg_mseg:	defb	"too many segments, groups or"

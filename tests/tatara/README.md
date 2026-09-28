@@ -1,6 +1,6 @@
 # The assembler's tests
 
-195 sources and 259 checks, run by one script.
+199 sources and 263 checks, run by one script.
 
 ```
 tests
@@ -25,7 +25,8 @@ references. The symbol table, long names and case folding. Segments:
 `ASEG`, `CSEG`, `DSEG`, named segments, groups and transient segments.
 The instruction table and every addressing form. Listings: pagination,
 `TITLE`, `SUBTTL`, `.LIST`/`.XLIST` and macro-expansion modes. Object
-output, and the include search with its environment variable. Where a
+output, and the include search with its environment variable. Public
+symbols, by the directive and by the second colon. Where a
 label may sit: column 1 with the colon optional, indented with the
 colon required.
 

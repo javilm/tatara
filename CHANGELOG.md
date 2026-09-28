@@ -2,6 +2,15 @@
 
 Tatara and Tanren. Newest first.
 
+## v1.1.4 - 2026-09-28
+
+- `name::` declares `name` PUBLIC, which is what M80 does. Tatara had
+  accepted the second colon and done nothing with it, so an object file
+  could come out missing a public symbol and fail at link time instead.
+- `EQU`, `DEFL` and `MACRO` now refuse a colon after the name. A colon
+  makes the label field a label, and those three take a name, so the
+  line leaves them with nothing to name - M80 rejects it too.
+
 ## v1.1.3 - 2026-09-28
 
 - A label no longer has to start in column 1. An indented one is a label

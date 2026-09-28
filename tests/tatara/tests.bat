@@ -303,6 +303,18 @@ tatara /q /p equset.as >> results.txt
 echo === PUBT.AS /S (expect FOO and BAR, both public) >> results.txt
 tatara /q /p /s pubt.as >> results.txt
 
+echo === PUBCC.AS /S (expect TWO and IND public, ONE not) >> results.txt
+tatara /q /p /s pubcc.as >> results.txt
+
+echo === COLNEQ.AS (expect a name, not a label, line 4) >> results.txt
+tatara /q /p colneq.as >> results.txt
+
+echo === COLNDF.AS (expect a name, not a label, line 3) >> results.txt
+tatara /q /p colndf.as >> results.txt
+
+echo === COLNMAC.AS (expect a name, not a label, line 4) >> results.txt
+tatara /q /p colnmac.as >> results.txt
+
 echo === EXTT.AS /S (expect E1 = 0 and E2 = 1, both external) >> results.txt
 tatara /q /p /s extt.as >> results.txt
 

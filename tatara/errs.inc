@@ -75,6 +75,9 @@
 					; or with no name, or with a label
 		extrn errngrp		; a transient DSEG with no GROUP
 					; open yet
+		extrn errnlab		; EQU, DEFL or MACRO with a colon
+					; after the name, which makes it a
+					; label - M80 2.3.1
 		extrn errmseg		; more segments or group than an
 					; index byte can hold
 

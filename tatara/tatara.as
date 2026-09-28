@@ -294,6 +294,8 @@ main.set:	ld	a,(flds+FL_LABL)
 					;   SET reached here too and
 					;   does not now - it is the bit
 					;   instruction and nothing else
+		call	labcol		; a name, not a label, as for EQU
+		jp	z,errnlab
 		ld	de,(flds+FL_ARG)
 		ld	a,(flds+FL_ARGL)
 		call	evalexp		; HL = the value
@@ -315,6 +317,10 @@ main.set:	ld	a,(flds+FL_LABL)
 main.equ:	ld	a,(flds+FL_LABL)
 		or	a
 		jp	z,errxsyn	; EQU with no name in front of it
+		call	labcol		; and a NAME is what it takes: a
+		jp	z,errnlab	;   colon would make it a label,
+					;   which is M80 2.3.1 and leaves
+					;   the EQU nameless - error O
 		ld	de,(flds+FL_ARG)
 		ld	a,(flds+FL_ARGL)
 		call	evalexp
@@ -820,6 +826,69 @@ main.grp:	ld	a,(flds+FL_LABL)
 		call	seggrp
 		jp	main.emit
 
+COLON		equ	03ah	; ":" - named rather than written, the
+				;   habit fields.as keeps for the
+				;   characters it tests
+
+; labcol - the character that follows the label's name.
+;
+;   NOTHING IS RECORDED WHEN THE LINE IS SPLIT, and nothing needs to
+;   be: splitln steps over the colons but leaves FL_LAB and FL_LABL
+;   pointing into the line buffer, so what was written after the name
+;   is still there to read.
+;
+;   A LINE WITH NO LABEL ANSWERS "no colon", which is what both
+;   callers want. That is why the empty case returns 1 and not 0 -
+;   the flags have to say NZ, and 0 would say the opposite.
+;
+; Input:	flds describes the line
+; Output:	Z set = a colon follows the name, "name:" or "name::"
+;		NZ    = no label at all, or a name with no colon
+;		HL -> that character, when there is a label
+; Modifies:	AF, DE, HL
+
+labcol:		ld	a,(flds+FL_LABL)
+		or	a
+		jr	nz,labcol.have
+		inc	a		; no label: 1 is not a colon, and
+		ret			;   INC leaves NZ to say so
+labcol.have:	ld	e,a
+		ld	d,0
+		ld	hl,(flds+FL_LAB)
+		add	hl,de		; the character after the name
+		ld	a,(hl)
+		cp	COLON
+		ret
+
+; labpub - "name::" declares name PUBLIC.
+;
+;   M80 2.3.1: "If it is followed by two colons, it is declared as
+;   PUBLIC", and "FOO:: RET" is equivalent to "PUBLIC FOO" then
+;   "FOO: RET".
+;
+;   BEFORE THE SYMBOL IS DEFINED. sympub creates a record with
+;   SYF_DEF clear so that the definition which follows counts as the
+;   first one - the path "public foo" at the top of a file and "foo:"
+;   two hundred lines down has always taken.
+;
+;   Both passes run it. On pass 2 the record is already there and
+;   sympub ORs a flag that is already set.
+;
+; Input:	flds describes the line
+; Output:	the name carries SYF_PUB if two colons followed it
+; Modifies:	AF, BC, DE, HL, IX
+
+labpub:		call	labcol
+		ret	nz		; no label, or no colon at all
+		inc	hl
+		ld	a,(hl)
+		cp	COLON
+		ret	nz		; "name:" - the ordinary label
+		ld	a,(flds+FL_LABL)
+		ld	b,a		; where sympub wants it
+		ld	de,(flds+FL_LAB)
+		jp	sympub		; "name::"
+
 ; deflab - a label in the label field takes the location counter.
 ;
 ;   BEFORE ORG and DS act, which looks wrong and is right: "here: ds 4"
@@ -838,6 +907,7 @@ main.grp:	ld	a,(flds+FL_LABL)
 deflab:		ld	a,(flds+FL_LABL)
 		or	a
 		ret	z		; no label on this line
+		call	labpub		; "name::", before the definition
 		call	segwr		; a variable in a transient DSEG
 					;   must be inside a GROUP
 		ld	a,(flds+FL_LABL)
@@ -936,7 +1006,12 @@ main.pag1:	call	lsteject	; WITH AN OPERAND OR WITHOUT: M80
 					;   PAGEDIR.AS showed and the manual
 					;   does not say
 
-main.mac:	ld	de,linebuf	; M80 lists the MACRO line and every
+main.mac:	call	labcol		; a name, not a label - and BEFORE
+		jp	z,errnlab	;   macdef, so the macro is never
+					;   opened. M80 does the same: its
+					;   ENDM then gets an error of its
+					;   own, for closing nothing
+		ld	de,linebuf	; M80 lists the MACRO line and every
 		ld	a,(linelen)	;   line of the body. macdef lists
 		call	lstbody		;   the body as it reads it; this is
 		ld	hl,linebuf	;   the one line it never sees
