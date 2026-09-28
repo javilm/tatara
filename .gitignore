@@ -22,4 +22,10 @@ dist/
 !build/tanren.com
 !tests/tatara/m80ref/*.prn
 
-
+# Files that may have been brought over by mistake when
+# cloning the emulator's filesystem to the repo
+git/
+_to_dele/
+gitattri
+gitignor
+changelo.md

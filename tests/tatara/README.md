@@ -1,6 +1,6 @@
 # The assembler's tests
 
-194 sources and 257 checks, run by one script.
+195 sources and 259 checks, run by one script.
 
 ```
 tests
@@ -25,7 +25,9 @@ references. The symbol table, long names and case folding. Segments:
 `ASEG`, `CSEG`, `DSEG`, named segments, groups and transient segments.
 The instruction table and every addressing form. Listings: pagination,
 `TITLE`, `SUBTTL`, `.LIST`/`.XLIST` and macro-expansion modes. Object
-output, and the include search with its environment variable.
+output, and the include search with its environment variable. Where a
+label may sit: column 1 with the colon optional, indented with the
+colon required.
 
 Many tests are deliberately wrong programs: the expectation in the
 marker line is an error message and its position.

@@ -67,7 +67,7 @@ rem this had to cd into the source directory and back again. That
 rem is no longer true: the includes beside
 rem the source are found by its own directory, and the shared ones
 rem through TATARA.
-set TATARA=a:\tatara\repo\shared
+set TATARA=..\..\shared
 tatara /q ..\..\tatara\tatara.as tatara.tro
 set TATARA=
 tanren tatara.tro >> results.txt
@@ -140,7 +140,7 @@ echo === THE SAME TWO, TANREN unset (expect: cannot open) >> results.txt
 set TANREN=
 tanren /q /o:env.com suba.tro subb.tro >> results.txt
 echo === AND WITH TANREN set (expect 2 modules) >> results.txt
-set TANREN=a:\tatara\repo\tests\tanren\objs
+set TANREN=objs
 tanren /q /m /o:env.com suba.tro subb.tro >> results.txt
 set TANREN=
 

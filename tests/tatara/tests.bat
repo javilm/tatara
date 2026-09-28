@@ -291,6 +291,12 @@ tatara /q /p equm.as >> results.txt
 echo === LABM.AS (expect already has a value, line 3) >> results.txt
 tatara /q /p labm.as >> results.txt
 
+echo === LABIND.AS /S (expect top 0, bare 2, mid 4, pub 6, only 8) >> results.txt
+tatara /q /p /s labind.as >> results.txt
+
+echo === LABIND.AS /F (expect mid, pub and only in the label field) >> results.txt
+tatara /q /p /f labind.as >> results.txt
+
 echo === EQUSET.AS (expect already has a value, line 3) >> results.txt
 tatara /q /p equset.as >> results.txt
 
@@ -875,7 +881,7 @@ set TATARA=
 tatara /q /p incenv.as >> results.txt
 
 echo === INCENV.AS with TATARA set (expect FROM-TATARA-PATH) >> results.txt
-set TATARA=a:\tatara\repo\tests\tatara\lib
+set TATARA=lib
 tatara /q /p incenv.as >> results.txt
 set TATARA=
 
@@ -884,7 +890,7 @@ rem NO CD, AND NO COPY. The source is named by a path, its
 rem own includes are found beside it, and the shared ones come from
 rem TATARA - which this line is now a test of. The
 rem object lands here because that is where it was asked for.
-set TATARA=a:\tatara\repo\shared
+set TATARA=..\..\shared
 tatara /q ..\..\tatara\tatara.as tatara.tro >> results.txt
 set TATARA=
 

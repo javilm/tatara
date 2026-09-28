@@ -1,4 +1,4 @@
-# Tatara and TANREN
+# Tatara and Tanren
 
 **Tatara** is an M80-compatible macro assembler for the MSX and **Tanren** is its linker. They read M80 syntax, produce and consume relocatable object files, and run **on the MSX itself** under MSX-DOS2 - there is no cross-assembler and no other computer involved. Tatara assembles itself: the `TATARA.COM` in `build/` was built from the sources beside it, by the copy before it.
 
@@ -10,7 +10,7 @@ M80 and L80 were written for CP/M, and nothing in them knows about MSX-DOS 2 dir
 
 ## Why not M80 and L80, or AS and LD
 
-| | Tatara / TANREN | M80 / L80 | SOLiD AS / LD |
+| | Tatara / Tanren | M80 / L80 | SOLiD AS / LD |
 |---|---|---|---|
 | Symbol length | 255 | 6 | - |
 | Case-sensitive symbols | optional | no | no |

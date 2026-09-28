@@ -4,10 +4,10 @@
 ;
 ;   label  operation  operand  ; comment
 ;
-; All four are optional. A label is a label because it starts in column 1;
-; the colon after it is optional, and a line that starts with a space or a tab
-; has no label at all. Everything from an unquoted ";" to the end of
-; the line is a comment.
+; All four are optional. A label in column 1 needs no colon; an indented
+; label must end with one, which is what M80 accepts and what most M80
+; source is written as. Everything from an unquoted ";" to the end of the
+; line is a comment.
 ;
 ; Nothing here copies any text. splitln fills in four addresses and four
 ; lengths that point into the caller's line buffer.
@@ -43,6 +43,8 @@ splitln:	xor	a		; every field absent until proved
 		ld	(ix+FL_ARGL),a
 		ld	(ix+FL_CMTL),a
 
+		ld	c,0		; C = 0: column 1, where a label is
+					;   a label with or without a colon
 		ld	a,(hl)
 		call	flsep		; Z set = this cannot start a label
 		jr	nz,splitln.lab
@@ -50,21 +52,42 @@ splitln:	xor	a		; every field absent until proved
 		ret	z		; an empty line: nothing to do
 		cp	SEMIC
 		jp	z,splitln.cmt	; a comment starting in column 1
-		jr	splitln.op	; indented: this line has no label
+		call	flskip		; indented: on to the first word
+		ld	a,(hl)
+		or	a
+		ret	z		; spaces and nothing else
+		cp	SEMIC
+		jp	z,splitln.cmt	; an indented comment
+		inc	c		; C = 1: out here only a colon makes
+					;   a label, and without one the word
+					;   is the operation
 
-; --- the label. Column 1, colon optional, "::" allowed for a public label
+; --- the label. In column 1 the colon is optional; indented it is what
+;     makes this a label at all. "::" is M80's public label, either way.
 
 splitln.lab:	ld	(ix+FL_LAB),l
 		ld	(ix+FL_LAB+1),h
 		ld	b,0		; B = characters taken so far
 splitln.labs:	ld	a,(hl)
 		cp	COLON
-		jr	z,splitln.labe
+		jr	z,splitln.labc
 		call	flsep
-		jr	z,splitln.labe
+		jr	z,splitln.labc
 		inc	hl
 		inc	b
 		jr	splitln.labs
+
+; The word is cut and A holds the character that ended it: flsep leaves
+; A alone, and the colon test above falls through with the colon still
+; in it. In column 1 the word is the label whatever ended it. Indented,
+; only a colon makes it one - and if none did, the word just walked was
+; the operation.
+
+splitln.labc:	cp	COLON
+		jr	z,splitln.labe
+		ld	a,c
+		or	a
+		jr	nz,splitln.opq
 splitln.labe:	ld	(ix+FL_LABL),b
 		ld	a,(hl)
 		cp	COLON
@@ -75,6 +98,26 @@ splitln.labe:	ld	(ix+FL_LABL),b
 		jr	nz,splitln.op
 		inc	hl		; and over the secuond one: M80 writes
 					; "name::" for a public label
+		jr	splitln.op	; NOT a fall-through: splitln.opq now
+					;   sits between this and the
+					;   operation step
+
+; splitln.opq - the indented word was not a label. HL and B already
+;   describe it and FL_LAB already holds its address, so the operation
+;   field is those same three things under another name. FL_LABL was
+;   never written and still holds the zero from the top of splitln:
+;   there is nothing to undo.
+;
+;   JP and not JR. The jump clears the whole operation step, and 073
+;   spent a build on a JR that went out of range in the short routine a
+;   correction had just grown.
+
+splitln.opq:	ld	a,(ix+FL_LAB)
+		ld	(ix+FL_OP),a
+		ld	a,(ix+FL_LAB+1)
+		ld	(ix+FL_OP+1),a
+		ld	(ix+FL_OPL),b
+		jp	splitln.arg
 
 ; --- the operation
 

@@ -2,6 +2,13 @@
 
 Tatara and Tanren. Newest first.
 
+## v1.1.3 - 2026-09-28
+
+- A label no longer has to start in column 1. An indented one is a label
+  if a colon ends it, which is what M80 accepts, and `name::` works
+  indented too. A line starting in column 1 is unchanged - there the
+  colon is still optional.
+
 ## v1.1.2 - 2026-09-28
 
 - The tools are now distributed as a single LZH archive, `TATARxyz.LZH`,
