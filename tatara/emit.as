@@ -27,6 +27,7 @@ EMITLIB		equ	1		; skips the externals in emit.inc
 		public	lston		;   lines it reads itself
 		public	lsttset		; TITLE and SUBTTL, the page
 		public	lsteject	;   break PAGE asks for, how long
+		public	lstff		;   a form feed in the source,
 		public	lstpset		;   a page is, and the title
 		public	lsttitl		;   itself, which names the module
 		public	lstinit		; the listing's per-pass
@@ -689,9 +690,11 @@ lstl.done:	ld	a,(lstpend)
 		ld	(lstpend),a
 		ld	(lstlleft),a	; A SUBPAGE, not a main page: M80
 		ret			;   answers 1-1, which PAGEDIR.AS
-					;   asked it. Nothing moves the main
-					;   number yet - a TITLE is what
-					;   probably does, and no test says so
+					;   asked it. A FORM FEED is what moves
+					;   the main number - lstff, 090 - and
+					;   NOT title, the guess written here
+					;   until M80PGNUM.MAC put one mid-file
+					;   and nothing happened
 
 ; lstinit - the listing, back to where a pass starts it.
 ;
@@ -876,6 +879,35 @@ lstt.len:	ld	(hl),a
 
 lsteject:	ld	a,0ffh
 		ld	(lstpend),a
+		ret
+
+; lstff - a form feed in the source.
+;
+;   IT BREAKS THE PAGE AT ONCE, which is the opposite of lsteject
+;   above, and M80 is the reason for both: the PAGE directive belongs
+;   to the page it was written on and is listed there, while a form
+;   feed's own line is printed EMPTY AT THE TOP OF THE NEW PAGE -
+;   m80pgnum.prn shows one of each, two pages apart.
+;
+;   AND IT MOVES THE MAIN NUMBER. That is the question lstl.done used
+;   to leave open: PAGE gives 2-1 and never touches the first number,
+;   and the guess written there was that TITLE moved it. It does not -
+;   M80PGNUM.MAC has a TITLE in the middle of the file and it starts no
+;   page at all. A form feed does, and nothing else we have seen does.
+;
+;   lstlleft goes to zero rather than a page being written here: the
+;   next line listed finds no room and opens the page itself, which is
+;   the same path the first line of a listing takes.
+;
+; Input:	nothing
+; Output:	the next line listed starts a new main page
+; Modifies:	AF, HL
+
+lstff:		ld	hl,lstpage1
+		inc	(hl)
+		xor	a
+		ld	(lstsub),a	; a MAIN page, not a subpage: the
+		ld	(lstlleft),a	;   numbering starts again under it
 		ret
 
 ; lstpset - PAGE expr: how long a page is.

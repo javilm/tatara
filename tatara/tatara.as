@@ -126,7 +126,14 @@ main.loop:	ld	a,(endseen)	; an END line ends the pass, and
 		call	getline		; CY set = no more lines, anywhere
 		jp	c,main.done
 		ld	(linelen),a	; splitln and dirlook both destroy A
-
+		dec	a		; A FORM FEED ON A LINE OF ITS OWN
+		jr	nz,main.nff	;   STARTS A PAGE, and A still holds
+		ld	a,(linebuf)	;   the length. It must not reach
+		cp	CHR_FF		;   splitln: nothing there ends a field
+		jp	z,main.ff	;   on 0Ch, so it would become a label
+					;   and be defined like any other -
+					;   issue #17
+main.nff:
 		ld	hl,linebuf
 		ld	ix,flds		; getline used IX for its own purposes
 		call	splitln
@@ -1164,6 +1171,21 @@ main.irp4:	ex	de,hl		; DE -> the items, A = how many,
 ; obeyed.
 
 main.exitm:	call	mexitm
+		jp	main.loop
+
+; A form feed. The page breaks BEFORE the line is listed - the opposite
+; of PAGE, whose note lsteject leaves is read after - and then the line
+; itself is listed with a length of zero, which is M80's empty line at
+; the top of the new page. lstbody is the routine that lists text with
+; no address column, and zero characters of text is an empty line.
+;
+; Nothing else happens to it: no fields, no label, no bytes, and the
+; object file never hears of it.
+
+main.ff:	call	lstff
+		ld	de,linebuf
+		xor	a
+		call	lstbody
 		jp	main.loop
 
 ; getline has already closed and removed every source, so there is nothing

@@ -128,6 +128,12 @@
 					; line being listed now. The
 					; directive belongs to the page it
 					; was written on
+		extrn lstff		; a form feed in the source: break
+					; the page NOW, before the line is
+					; listed, and move the MAIN number.
+					; M80 prints the form feed's own
+					; line empty at the top of the page
+					; it opens
 		extrn lstpset		; PAGE expr: how long a page is.
 					; 10 to 255; anything else leaves
 					; it alone

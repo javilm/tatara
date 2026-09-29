@@ -770,6 +770,21 @@ tatara /q /p /l ifcase.as >> results.txt
 echo === M80 IFCASE.AS - IS TEXT COMPARED EXACTLY? >> results.txt
 type m80ref\ifcase.prn >> results.txt
 
+echo === PAGENUM.AS (expect a page break at the form feed, PAGE 2, then 2-1) >> results.txt
+rem THROUGH A LISTING FILE AND type, like PAGEDIR and LONGLST: MSX-DOS
+rem renders a form feed as two characters on its way through type, and
+rem cmpm80.py stops reading at a REAL one. Redirected straight to
+rem RESULTS.TXT this listing keeps its 0Ch and the comparison stopped at
+rem the first page break.
+tatara /q /l pagenum.as pagenum.tro pagenum.prn
+type pagenum.prn >> results.txt
+
+echo === M80 PAGENUM.AS - DOES A FORM FEED MOVE THE MAIN NUMBER? >> results.txt
+type m80ref\pagenum.prn >> results.txt
+
+echo === PAGENUM.AS /S (expect an EMPTY symbol table - a form feed defines nothing) >> results.txt
+tatara /q /p /s pagenum.as >> results.txt
+
 echo === M80 FCONDD.AS - IS THE DEFAULT TO LIST THEM? >> results.txt
 type m80ref\fcondd.prn >> results.txt
 

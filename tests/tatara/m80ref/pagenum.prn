@@ -1,0 +1,34 @@
+Second title	MSX.M-80 2.00	30-Sep-26	PAGE	1
+
+
+                                ; M80PGNUM.MAC - PAGENUM.AS in M80.
+                                		.Z80
+                                		title	First title
+  0000'                         		cseg
+  0000'   01                    		db	1
+First title	MSX.M-80 2.00	30-Sep-26	PAGE	2
+
+
+                                
+  0001'   02                    		db	2
+                                		title	Second title
+  0002'   03                    		db	3
+                                		page
+Second title	MSX.M-80 2.00	30-Sep-26	PAGE	2-1
+
+
+                                
+  0003'   04                    		db	4
+                                		end
+Second title	MSX.M-80 2.00	30-Sep-26	PAGE	S
+
+
+Macros:
+
+Symbols:
+
+
+
+No Fatal error(s)
+
+
