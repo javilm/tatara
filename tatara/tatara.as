@@ -1502,7 +1502,7 @@ msg_hbk2:	defb	" blocks.",CHR_CR,CHR_LF,"$"
 msg_nl:		defb	CHR_CR,CHR_LF,"$"
 msg_noopn:	defb	"ERROR: cannot open $"
 msg_nocre:	defb	"ERROR: cannot create $"
-msg_from:	defb	CHR_CR,CHR_LF,"       included from $"
+msg_from:	defb	CHR_CR,CHR_LF,"    included from $"
 msg_lpar:	defb	"($"
 msg_rpar:	defb	")",CHR_CR,CHR_LF,"$"
 msg_same:	defb	"ERROR: the output file is the input file.",CHR_CR
