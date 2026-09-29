@@ -740,6 +740,9 @@ type m80ref\fcond.prn >> results.txt
 echo === FCONDD.AS (a false branch with nothing said: the default) >> results.txt
 tatara /q /p /l fcondd.as >> results.txt
 
+echo === FCONDLAB.AS /S (expect no address on LAB or VAL, and only T0 defined) >> results.txt
+tatara /q /p /l /s fcondlab.as >> results.txt
+
 echo === M80 FCONDD.AS - IS THE DEFAULT TO LIST THEM? >> results.txt
 type m80ref\fcondd.prn >> results.txt
 

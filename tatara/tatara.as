@@ -159,6 +159,10 @@ main.nofld:
 		ld	a,(dirnum)
 		call	cndline		; CY set = this line produces nothing
 		jr	nc,main.cnd0
+		call	emitskip	; and so names no place: a label on a
+					;   skipped line must not put the
+					;   location counter in the listing's
+					;   address column. M80 blanks it
 		ld	a,(dirnum)	; IT PRODUCES NOTHING FOR ONE OF TWO
 		cp	D_IF		;   REASONS, and the number says which:
 		jr	c,main.cskp	;   the IF family is contiguous, which

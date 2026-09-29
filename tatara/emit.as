@@ -20,6 +20,7 @@
 EMITLIB		equ	1		; skips the externals in emit.inc
 
 		public	emitinit
+		public	emitskip
 		public	emitval
 		public	lstline		; the driver's tail, made
 		public	lstbody		;   callable - macdef lists the
@@ -119,6 +120,29 @@ emitinit:	ld	(lstaddr),hl
 		ld	hl,0		;   body before the call line is
 		ld	(emitn),hl	;   listed, so asking later would
 		ret			;   call a file line an expansion
+
+; emitskip - this line is inside a branch that is not taken.
+;
+;   IT NAMES NO PLACE. emitinit is told the label length before
+;   cndline has run, because the listing wants the line's starting
+;   address recorded before any directive can move the counter - so a
+;   skipped line arrives here already classified as one that names a
+;   place, and the classification has to be withdrawn rather than
+;   delayed.
+;
+;   emitn is already 0 and no emitter will run, so clearing lstlab is
+;   the whole of it: epf.go then leaves the column blank, which is
+;   what M80 does. Checked against M80 on 2026-09-29 - a label and an
+;   EQU inside a false branch both list with nothing in the address
+;   column, and neither reaches the symbol table.
+;
+; Input:	nothing
+; Output:	(lstlab) = 0
+; Modifies:	AF
+
+emitskip:	xor	a
+		ld	(lstlab),a
+		ret
 
 ; emitval - the address column shows a VALUE rather than a place.
 ;

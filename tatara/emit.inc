@@ -18,6 +18,11 @@
 					; LINE, not per pass
 					; in:  HL = where it begins
 					;      A  = its segment index
+		extrn emitskip		; this line is inside a branch that
+					; is not taken, so it names no
+					; place and its address column
+					; stays blank - which is what M80
+					; does
 		extrn emitval		; the listing's address column
 					; shows a VALUE rather than a
 					; place: EQU and DEFL, which is
