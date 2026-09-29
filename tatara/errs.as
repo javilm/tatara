@@ -408,7 +408,7 @@ errdiea:	ld	(erfil),a
 errdie.msg:	ld	de,msg_err	; THE ONE COPY. Sixty-four messages
 		call	putsz		;   carried these seven bytes each
 		ld	de,(ermsg)	;
-		system	_STROUT
+		call	putstr
 		call	errtrl
 		jp	dosexit
 

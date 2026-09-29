@@ -531,7 +531,7 @@ sdshdr:		ld	ix,segtab
 
 		call	sdname		; IT ANSWERS IN sdresv AND NOT IN A
 		ld	de,msg_sddsh	;   FLAG: the _STROUT below would
-		system	_STROUT		;   destroy one, and did
+		call	putstr		;   destroy one, and did
 		ld	a,(sdflag)
 		and	SGF_ABS
 		jr	nz,sdsh.ab	; the ASEG is neither code nor data
@@ -539,31 +539,31 @@ sdshdr:		ld	ix,segtab
 		or	a
 		jr	z,sdsh.df
 		ld	de,msg_sdnmd	; "named "
-		system	_STROUT
+		call	putstr
 		jr	sdsh.kd
 sdsh.df:	ld	de,msg_sddef	; "default "
-		system	_STROUT
+		call	putstr
 sdsh.kd:	ld	a,(sdflag)
 		and	SGF_DATA
 		ld	de,msg_sdcod
 		jr	z,sdsh.kw
 		ld	de,msg_sddat
-sdsh.kw:	system	_STROUT
+sdsh.kw:	call	putstr
 		jr	sdsh.tr
 sdsh.ab:	ld	de,msg_sdabs
-		system	_STROUT
+		call	putstr
 
 sdsh.tr:	ld	a,(sdflag)
 		and	SGF_TRAN
 		jr	z,sdsh.gr
 		ld	de,msg_sdtrn
-		system	_STROUT
+		call	putstr
 
 sdsh.gr:	ld	a,(sdgrp)
 		cp	GRPNONE
 		jr	z,sdsh.sz
 		ld	de,msg_sdgrp
-		system	_STROUT
+		call	putstr
 		ld	ix,grptab
 		ld	c,0		; A GROUP RECORD'S PAYLOAD IS ITS
 		ld	a,(sdgrp)	;   NUMBER, with nothing in front of
@@ -582,18 +582,18 @@ sdsh.sz:	ld	a,(sdflag)	; ASEG has no size worth printing
 		and	SGF_ABS
 		jr	nz,sdsh.nl
 		ld	de,msg_sdcom
-		system	_STROUT
+		call	putstr
 		ld	hl,(sdsize)
 		ld	de,sdhex
 		call	numhex
 		ld	de,sdhex
-		system	_STROUT
+		call	putstr
 		ld	de,msg_sdbyt
-		system	_STROUT
+		call	putstr
 sdsh.nl:	ld	de,msg_sdnl
-		system	_STROUT
+		call	putstr
 		ld	de,msg_sdnl
-		system	_STROUT
+		call	putstr
 		ret
 
 ; sdname - the segment's name.
@@ -633,7 +633,7 @@ sdname:		call	sdkey
 		ld	de,msg_sdds
 		cp	"D"
 		jr	nz,sdnm.own
-sdnm.w:		system	_STROUT
+sdnm.w:		call	putstr
 		xor	a
 		ld	(sdresv),a	; one of the three
 		ret
@@ -695,7 +695,7 @@ sdks.lp:	call	sdkey
 		ld	d,0
 		add	hl,de
 		ld	e,(hl)
-		system	_CONOUT
+		call	putch
 		ld	hl,sdkoff
 		inc	(hl)
 		ld	hl,sdklen
@@ -731,9 +731,9 @@ sdor.end:	ld	a,(sdany)
 		or	a
 		jr	nz,sdor.nl
 		ld	de,msg_sdnon
-		system	_STROUT
+		call	putstr
 sdor.nl:	ld	de,msg_sdnl
-		system	_STROUT
+		call	putstr
 		ret
 
 ; sdscan - ONE walk of the symbol table, doing two jobs at once.
@@ -840,9 +840,9 @@ sdline:		ld	hl,(sdcur)
 		ld	de,sdhex
 		call	numhex
 		ld	de,sdhex
-		system	_STROUT
+		call	putstr
 		ld	de,msg_sdgap	; the two spaces a HEADING must not
-		system	_STROUT		;   have: it wants "0003h bytes"
+		call	putstr		;   have: it wants "0003h bytes"
 		ld	a,(sdflags)
 		and	SYF_PUB+SYF_VAR
 		ld	de,msg_sdloc
@@ -854,14 +854,14 @@ sdline:		ld	hl,(sdcur)
 		ld	de,msg_sdvar
 		jr	z,sdln.ty
 		ld	de,msg_sdpv
-sdln.ty:	system	_STROUT
+sdln.ty:	call	putstr
 		call	sdkey
 		ld	(sdklen),a
 		xor	a
 		ld	(sdkoff),a
 		call	sdkstr
 		ld	de,msg_sdnl
-		system	_STROUT
+		call	putstr
 		ret
 
 ; sdplain - a section with no address column: the externals, and the
@@ -892,7 +892,7 @@ sdpl.lp:	ld	ix,symtab
 		or	a		;   only if there was a section
 		ret	z
 		ld	de,msg_sdnl
-		system	_STROUT
+		call	putstr
 		ret
 sdpl.on:	call	sdpay
 		ld	de,SY_FLAGS
@@ -909,20 +909,20 @@ sdpl.on:	call	sdpay
 		ld	a,0ffh
 		ld	(sdgot),a
 		ld	de,(sdhdrp)
-		system	_STROUT
+		call	putstr
 		ld	de,msg_sdnl
-		system	_STROUT
+		call	putstr
 		ld	de,msg_sdnl
-		system	_STROUT
+		call	putstr
 sdpl.nm:	ld	de,msg_sdind
-		system	_STROUT
+		call	putstr
 		call	sdkey
 		ld	(sdklen),a
 		xor	a
 		ld	(sdkoff),a
 		call	sdkstr
 		ld	de,msg_sdnl
-		system	_STROUT
+		call	putstr
 		jp	sdpl.lp		; jp AND NOT jr: the section heading
 					;   at the top of the loop put this
 					;   past 127 bytes
@@ -949,7 +949,7 @@ sdpay:		call	sdkey
 ; sdchar - one character, BC kept.
 
 sdchar:		push	bc
-		system	_CONOUT
+		call	putch
 		pop	bc
 		ret
 

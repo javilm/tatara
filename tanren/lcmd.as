@@ -525,11 +525,11 @@ lcmbann:	ld	a,(loptquiet)
 ; Modifies:	AF, DE
 
 lcmver:		ld	de,msg_lba1
-		system	_STROUT
+		call	putstr
 		ld	de,msg_lvnum
-		system	_STROUT
+		call	putstr
 		ld	de,msg_lba2
-		system	_STROUT
+		call	putstr
 		ret
 
 ; lcmwarn - the command line may have been cut.
@@ -556,7 +556,7 @@ lcmwarn:	ld	a,(argcut)
 		or	a
 		ret	z
 		ld	de,msg_lcut
-		system	_STROUT
+		call	putstr
 		ret
 
 ; lcmusage - the banner and the usage screen, and stop.
@@ -569,7 +569,7 @@ lcmwarn:	ld	a,(argcut)
 
 lcmusage:	call	lcmver
 		ld	de,msg_luse
-		system	_STROUT
+		call	putstr
 		jp	dosexit
 
 ; THE VERSION IS WRITTEN ONCE. cmdline.as puts two labels together so

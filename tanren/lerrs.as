@@ -120,7 +120,7 @@ errlsflg:	ld	de,msg_lsflg
 errldie:	push	de		; THE ONE COPY, for the sixteen
 		call	errlpfx		;   errors that come through here
 		pop	de
-		system	_STROUT
+		call	putstr
 		jp	dosexit
 
 ; errlpfx - "ERROR: ", for the four that print a filename and so

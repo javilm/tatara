@@ -70,6 +70,13 @@ system		macro	func
 		extrn putszu		; print the ASCIIZ string at DE, in
 					; upper case (filenames)
 		extrn putdec		; print HL in decimal, no leading zeros
+		extrn putstr		; write the "$"-terminated string at
+					; DE to standard output. REPLACES
+					; BDOS 09h: see putstr in msxdos.as
+					; for why there is only one way to
+					; write to standard output
+		extrn putch		; write the one character in E
+					; in:  E = the character
 		extrn p2safe		; hand page 2 back, spoiling nothing
 		extrn dosexit		; hand control back to MSX-DOS
 		endif

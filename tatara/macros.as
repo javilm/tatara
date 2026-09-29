@@ -1252,36 +1252,36 @@ macdump:	derefp	mdmd
 		fpsave	mddblk		; the first block, into ordinary RAM
 
 		ld	de,msg_mac
-		system	_STROUT
+		call	putstr
 		ld	de,mdnam
 		call	putsz
 		ld	de,msg_mcol
-		system	_STROUT
+		call	putstr
 		ld	a,(mdnpar)
 		ld	l,a
 		ld	h,0
 		call	putdec
 		ld	de,msg_mpar
-		system	_STROUT
+		call	putstr
 		ld	a,(mddloc)
 		ld	l,a
 		ld	h,0
 		call	putdec
 		ld	de,msg_mloc
-		system	_STROUT
+		call	putstr
 		ld	hl,(mddn)
 		call	putdec
 		ld	de,msg_mlin
-		system	_STROUT
+		call	putstr
 		ld	a,(mddfil)
 		call	getfnam
 		call	putszu		; a filename: upper case
 		ld	de,msg_mlp
-		system	_STROUT
+		call	putstr
 		ld	hl,(mddorg)
 		call	putdec
 		ld	de,msg_mrp
-		system	_STROUT
+		call	putstr
 
 macdump.blk:	fpnull	mddblk
 		ret	z		; no more blocks: done
@@ -1333,15 +1333,15 @@ macdump.one0:	ex	de,hl
 ; Everything wanted is now in ordinary RAM, so page 2 may go.
 
 		ld	de,msg_mrl
-		system	_STROUT
+		call	putstr
 		ld	hl,(mddlin)
 		call	putdec
 		ld	de,msg_mrb
-		system	_STROUT
+		call	putstr
 		ld	de,(mdbuf)
 		call	mdpr		; markers show as <n>
 		ld	de,msg_mnl
-		system	_STROUT
+		call	putstr
 
 		ld	hl,(mddoff)	; step over the record
 		ld	a,(mddlen)
@@ -1371,7 +1371,7 @@ mdpr:		ld	a,(de)
 		jr	z,mdpr.locl
 		push	de
 		ld	e,a
-		system	_CONOUT
+		call	putch
 		pop	de
 		inc	de
 		jr	mdpr
@@ -1386,13 +1386,13 @@ mdpr.mark:	inc	de		; the index follows the marker byte
 		ld	(mdprn),a
 		push	de
 		ld	de,(mdprb)
-		system	_STROUT
+		call	putstr
 		ld	a,(mdprn)
 		ld	l,a
 		ld	h,0
 		call	putdec
 		ld	de,msg_mgt
-		system	_STROUT
+		call	putstr
 		pop	de
 		inc	de
 		jr	mdpr

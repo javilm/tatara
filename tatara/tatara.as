@@ -1161,16 +1161,16 @@ main.fin:	call	objfin
 		or	a		;   a report and not output, and a
 		jr	nz,main.fin2	;   batch file wants neither
 		ld	de,msg_endat	; "ended at FILE(line)", in the
-		system	_STROUT		;   notation the errors use. NOT
+		call	putstr		;   notation the errors use. NOT
 		ld	a,(curfile)	;   "N lines": the number is where
 		call	getfnam		;   END was, and END inside an
 		call	putszu		;   include ends every file above
 		ld	de,msg_lpar	;   it, so the file named here is
-		system	_STROUT		;   where the assembly stopped and
+		call	putstr		;   where the assembly stopped and
 		ld	hl,(curline)	;   not always the one you typed
 		call	putdec
 		ld	de,msg_rpar
-		system	_STROUT
+		call	putstr
 main.fin2:
 		ld	a,(opthblk)
 		or	a
@@ -1184,11 +1184,11 @@ main.fin2:
 ; macro is expanded and must print the same figure.
 
 main.heap:	ld	de,msg_hbk1
-		system	_STROUT
+		call	putstr
 		ld	hl,(hblocks)
 		call	putdec
 		ld	de,msg_hbk2
-		system	_STROUT
+		call	putstr
 		ret
 
 ; --- INCLUDE
@@ -1410,20 +1410,20 @@ samename.cp:	ld	a,(de)
 ; INCLUDE line itself, because nothing was pushed.
 
 main.noinc:	ld	de,msg_noopn	; the same wording as a bad source
-		system	_STROUT		; file, so one message serves both
+		call	putstr		; file, so one message serves both
 		ld	de,(flds+FL_ARG)
 		call	putszu		; doincl terminated it in place
 		ld	de,msg_from
-		system	_STROUT
+		call	putstr
 		ld	a,(curfile)
 		call	getfnam
 		call	putszu
 		ld	de,msg_lpar
-		system	_STROUT
+		call	putstr
 		ld	hl,(curline)
 		call	putdec
 		ld	de,msg_rpar
-		system	_STROUT
+		call	putstr
 		call	errtrl		; and the rest of the chain. The
 					; failed include was never pushed, so
 					; the top of the stack is the file
@@ -1432,23 +1432,23 @@ main.noinc:	ld	de,msg_noopn	; the same wording as a bad source
 		jp	dosexit
 
 main.noopen:	ld	de,msg_noopn
-		system	_STROUT
+		call	putstr
 		ld	de,srcname
 		call	putszu
 		ld	de,msg_nl
-		system	_STROUT
+		call	putstr
 		jp	dosexit
 
 main.nocrea:	ld	de,msg_nocre
-		system	_STROUT
+		call	putstr
 		ld	de,dstname
 		call	putszu
 		ld	de,msg_nl
-		system	_STROUT
+		call	putstr
 		jp	dosexit
 
 main.same:	ld	de,msg_same
-		system	_STROUT
+		call	putstr
 		jp	dosexit
 
 main.usage:	jp	cmdusage	; the banner and the screen, in the
@@ -1458,11 +1458,13 @@ main.ver:	call	cmdver		; /V: the banner alone
 		jp	dosexit
 
 main.nomap:	ld	de,msg_nomap
-		system	_STROUT
+		call	putstr
 		jp	dosexit
 
-main.dos1:	ld	de,msg_dos1
-		system	_STROUT
+main.dos1:	ld	de,msg_dos1	; 09h, NOT putstr: putstr writes with
+		system	_STROUT		;   _WRITE, which is a DOS 2 function,
+					;   and this is the one message printed
+					;   on a machine that has no DOS 2
 		jp	dosexit
 
 		dseg

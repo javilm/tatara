@@ -237,11 +237,11 @@ cmdbann:	ld	a,(optquiet)
 ; Modifies:	AF, DE
 
 cmdver:		ld	de,msg_ban1
-		system	_STROUT
+		call	putstr
 		ld	de,msg_vnum
-		system	_STROUT
+		call	putstr
 		ld	de,msg_ban2
-		system	_STROUT
+		call	putstr
 		ret
 
 ; cmdusage - the banner and the usage screen, and stop.
@@ -259,7 +259,7 @@ cmdver:		ld	de,msg_ban1
 
 cmdusage:	call	cmdver
 		ld	de,msg_usage
-		system	_STROUT
+		call	putstr
 		jp	dosexit
 
 ; cpname - copy the word at HL into the next free filename slow.

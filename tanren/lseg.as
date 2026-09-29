@@ -781,7 +781,7 @@ lsgn.lp:	ld	a,(lsnat)
 		ld	(lsnch),a	; OUT OF THE MAPPER FIRST, then the
 		ld	a,(lsnch)	;   call - and through the system
 		ld	e,a		;   macro, so p2safe runs. A BDOS
-		system	_CONOUT		;   call written by hand here would
+		call	putch		;   call written by hand here would
 		ld	hl,lsnat	;   be the bug this loop exists for
 		inc	(hl)
 		jr	lsgn.lp

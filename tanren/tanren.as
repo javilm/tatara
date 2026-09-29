@@ -178,11 +178,11 @@ main.usage:	jp	lcmusage
 main.ver:	call	lcmver
 		jp	dosexit
 
-main.dos1:	ld	de,msg_ldos1
-		system	_STROUT
+main.dos1:	ld	de,msg_ldos1	; 09h, NOT putstr - see tatara.as
+		system	_STROUT		;   main.dos1 for why
 		jp	dosexit
 main.nomap:	ld	de,msg_lnomp
-		system	_STROUT
+		call	putstr
 		jp	dosexit
 
 ; main.p2 - pass 2: every module again, and this time its content.

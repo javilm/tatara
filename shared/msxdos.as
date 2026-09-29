@@ -5,6 +5,8 @@ MSXDOS		equ	1		; skips the externals in msxdos.nc
 		public	dosver
 		public	putsz
 		public	putszu
+		public	putstr
+		public	putch
 		public	dosexit
 		public	putdec
 		public	p2safe
@@ -43,15 +45,23 @@ dosver:		ld	b,1		; the value DOS1 will leave untouched
 ; Output:	the string is printed
 ; Modifies:	AB, BC, DE, HL
 
-putsz:		ld	a,(de)
+putsz:		ld	h,d		; measure first, then one _WRITE:
+		ld	l,e		;   see putstr below for why every
+		ld	bc,0		;   path to standard output has to be
+putsz.m:	ld	a,(hl)		;   the same one
 		or	a
-		ret	z		; the terminator -> done
-		push	de
-		ld	e,a
-		system	_CONOUT
-		pop	de
-		inc	de
-		jr	putsz
+		jr	z,putsz.go
+		inc	hl
+		inc	bc
+		jr	putsz.m
+putsz.go:	ld	h,b
+		ld	l,c
+		ld	a,h
+		or	l
+		ret	z		; an empty string writes nothing
+		ld	b,STDOUT
+		system	_WRITE
+		ret
 
 ; putszu - print the zero-terminated string at DE, folding a-z to A-Z.
 ;
@@ -74,10 +84,72 @@ putszu:		ld	a,(de)
 		call	strupr
 		push	de
 		ld	e,a
-		system	_CONOUT
+		call	putch
 		pop	de
 		inc	de
 		jr	putszu
+
+; putstr - write the "$"-terminated string at DE to standard output.
+;
+;   IT REPLACES BDOS 09h EVERYWHERE. Standard output used to be
+;   written two ways: 09h and 02h for messages, and _WRITE on a handle
+;   for the listing, whose bytes are arbitrary and so cannot go
+;   through a call that stops at a "$". Redirected, both landed in one
+;   file by two mechanisms, each with its own idea of where the file
+;   position was. Nothing was ever proved to go wrong because of it -
+;   the bug that prompted the change turned out to be the emulator's -
+;   but one mechanism is simpler than two and 243 bytes smaller, which
+;   is reason enough on its own.
+;
+;   THE "$" TERMINATOR STAYS so that every call site keeps the string
+;   it already had.
+;
+;   NOT USABLE UNDER MSX-DOS 1, which has no handles: _WRITE is a DOS 2
+;   function. dosver is the first call in the program and the message
+;   saying so is the only one that can be printed before it, so that
+;   one message keeps 09h - see main.dos1 in tatara.as and tanren.as.
+;
+;   A WRITE ERROR IS IGNORED. emitraw reports one by printing a
+;   message, and here a message is what has just failed.
+;
+; Input:	DE -> the string, "$" terminated
+; Output:	it is written to standard output
+; Modifies:	AF, BC, DE, HL
+
+putstr:		ld	h,d
+		ld	l,e
+		ld	bc,0
+putstr.m:	ld	a,(hl)
+		cp	"$"
+		jr	z,putstr.go
+		inc	hl
+		inc	bc
+		jr	putstr.m
+putstr.go:	ld	h,b
+		ld	l,c
+		ld	a,h
+		or	l
+		ret	z		; "$" first: nothing to write
+		ld	b,STDOUT
+		system	_WRITE
+		ret
+
+; putch - write the one character in E to standard output.
+;
+;   _WRITE takes an address and a length, so the character has to be
+;   somewhere. pcbuf is that somewhere.
+;
+; Input:	E = the character
+; Output:	it is written to standard output
+; Modifies:	AF, BC, DE, HL
+
+putch:		ld	a,e
+		ld	(pcbuf),a
+		ld	de,pcbuf
+		ld	hl,1
+		ld	b,STDOUT
+		system	_WRITE
+		ret
 
 ; dosexit - hand control back to MSX-DOS2.
 ;
@@ -99,16 +171,13 @@ dosexit:	system	_TERM0
 
 putdec:		ld	de,pdbuf
 		call	numdec		; A = how many digits
-		ld	b,a
-		ld	hl,pdbuf
-putdec.pr:	push	bc
-		push	hl
-		ld	e,(hl)
-		system	_CONOUT
-		pop	hl
-		pop	bc
-		inc	hl
-		djnz	putdec.pr
+		or	a
+		ret	z		; no digits: nothing to write
+		ld	l,a		; HL = how many numdec wrote
+		ld	h,0
+		ld	de,pdbuf
+		ld	b,STDOUT
+		system	_WRITE
 		ret
 
 ; p2safe - hand page 2 back to MSX-DOS without disturbing anything.
@@ -138,4 +207,6 @@ p2safe:		push	af
 		
 		dseg
 
+pcbuf:		defs	1	; putch: _WRITE wants an address and a
+				;   length, so one character needs one byte
 pdbuf:		defs	5		; putdec: the digits numdec writes
