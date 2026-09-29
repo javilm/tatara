@@ -417,8 +417,16 @@ errdie.msg:	ld	de,msg_err	; THE ONE COPY. Sixty-four messages
 ;   and popped only when it runs out, so at this instant every level
 ;   that led to the error is still there, in order.
 ;
-;   File levels print nothing. A file level's line number is where the
-;   level above it was called from, and that level has already said so.
+;   A FILE LEVEL PRINTS WHEN THE LEVEL ABOVE IT IS ANOTHER FILE LEVEL.
+;   When a macro sits above it, that macro has already named this file
+;   and this line as its call site, and saying it twice helps nobody -
+;   which is what the old rule said, correctly, about that one case and
+;   wrongly about every other. An include is not a call and nothing else
+;   prints one, so a chain of includes needs these lines or it is
+;   invisible.
+;
+;   The topmost level needs no test: erprev starts as LSK_MACRO, so a
+;   file there says nothing, and errdie has already named it.
 ;
 ;   THE PAGE 2 RULE, per level: read the record, read MD_KIND, and get
 ;   the name - all into ordinary RAM - and only then print anything.
@@ -429,7 +437,10 @@ errdie.msg:	ld	de,msg_err	; THE ONE COPY. Sixty-four messages
 ; Output:	the trail is printed
 ; Modifies:	everything
 
-errtrl:		ld	a,(srcdep)
+errtrl:		ld	a,LSK_MACRO	; nothing sits above the topmost
+		ld	(erprev),a	;   level, and a file there is the
+					;   one errdie has already named
+		ld	a,(srcdep)
 		or	a
 		ret	z		; nothing stacked: no trail
 
@@ -439,8 +450,9 @@ errtrl.lp:	dec	a
 		push	hl
 		pop	ix
 		ld	a,(ix+LS_KIND)
+		ld	(erthis),a	; kept: printing destroys IX
 		cp	LSK_MACRO
-		jr	nz,errtrl.nx	; a file level says nothing
+		jr	nz,errtrl.fil
 
 		push	ix		; the record: which descriptor, and
 		pop	hl		; where the call was
@@ -491,7 +503,34 @@ errtrl.p2:	push	de
 		ld	de,msg_cb2
 		call	putsz
 
-errtrl.nx:	ld	a,(eridx)
+; A file level. LS_FILE and LS_LINE are bytes of the entry itself, in
+; ordinary RAM, so there is no page 2 rule to keep here - only the
+; macro path needs one, for the far pointer at LS_MX.
+
+errtrl.fil:	ld	a,(erprev)
+		or	a
+		jr	nz,errtrl.nx	; a macro above has already named
+					;   this file and this line
+		ld	a,(ix+LS_FILE)
+		ld	(ercfil),a
+		ld	l,(ix+LS_LINE)	; the line it last handed over, which
+		ld	h,(ix+LS_LINE+1); is the INCLUDE that suspended it
+		ld	(erclin),hl
+		ld	de,msg_incfr
+		call	putsz
+		ld	a,(ercfil)
+		call	getfnam
+		call	putszu
+		ld	de,msg_ob
+		call	putsz
+		ld	hl,(erclin)
+		call	putdec
+		ld	de,msg_cb2
+		call	putsz
+
+errtrl.nx:	ld	a,(erthis)	; the level below asks what this one
+		ld	(erprev),a	;   was
+		ld	a,(eridx)
 		or	a
 		jp	nz,errtrl.lp	; a jp, not a jr: the loop body prints
 					; a whole trail line and is far past
@@ -511,6 +550,7 @@ msg_cbc:	defb	"): ",0
 msg_cb2:	defb	")",CHR_CR,CHR_LF,0
 msg_in:		defb	"    in ",0
 msg_from:	defb	", called from ",0
+msg_incfr:	defb	"    included from ",0
 msg_anon:	defb	"a repeat block",0
 msg_redef:	defb	"a redefined macro",0
 
@@ -522,6 +562,10 @@ ermd:		defs	4	; far pointer: this level's descriptor
 ercfil:		defs	1	; errtrl: where this level was called from
 erclin:		defs	2
 erkind:		defs	1	; errtrl: MD_KIND, for the unnamed cases
+erthis:		defs	1	; errtrl: this level's LS_KIND
+erprev:		defs	1	; errtrl: the level above this one's, which
+				;   is what decides whether a file level
+				;   prints at all
 
 msg_err:	defb	"ERROR: ",0	; printed by errdie.msg, so no
 				;   message below says it

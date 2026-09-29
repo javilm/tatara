@@ -1156,14 +1156,16 @@ main.fin:	call	objfin
 		ld	a,(optquiet)	; /Q: no summary line either. It is
 		or	a		;   a report and not output, and a
 		jr	nz,main.fin2	;   batch file wants neither
-		ld	a,(curfile)
-		call	getfnam		; DE -> that file's name
-		call	putszu
-		ld	de,msg_colon
-		system	_STROUT
-		ld	hl,(curline)
+		ld	de,msg_endat	; "ended at FILE(line)", in the
+		system	_STROUT		;   notation the errors use. NOT
+		ld	a,(curfile)	;   "N lines": the number is where
+		call	getfnam		;   END was, and END inside an
+		call	putszu		;   include ends every file above
+		ld	de,msg_lpar	;   it, so the file named here is
+		system	_STROUT		;   where the assembly stopped and
+		ld	hl,(curline)	;   not always the one you typed
 		call	putdec
-		ld	de,msg_lines
+		ld	de,msg_rpar
 		system	_STROUT
 main.fin2:
 		ld	a,(opthblk)
@@ -1494,8 +1496,7 @@ msg_cb:		defb	"]"
 msg_col:	defb	":"
 msg_crlf:	defb	CHR_CR,CHR_LF
 
-msg_colon:	defb	": $"
-msg_lines:	defb	" lines.",CHR_CR,CHR_LF,"$"
+msg_endat:	defb	"ended at $"
 msg_hbk1:	defb	"HEAP: $"
 msg_hbk2:	defb	" blocks.",CHR_CR,CHR_LF,"$"
 msg_nl:		defb	CHR_CR,CHR_LF,"$"

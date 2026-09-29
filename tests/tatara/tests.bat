@@ -175,6 +175,12 @@ tatara /q /p diaginc.as >> results.txt
 echo === DIAGRDF.AS (expect: in a redefined macro) >> results.txt
 tatara /q /p diagrdf.as >> results.txt
 
+echo === INCTRL.AS (expect INCTRL1.INC then INCTRL.AS, both included from) >> results.txt
+tatara /q /p inctrl.as >> results.txt
+
+echo === INCTRLM.AS (expect called from, then ONE included from) >> results.txt
+tatara /q /p inctrlm.as >> results.txt
+
 rem --- the symbol table
 
 echo === SYMLONG.AS (expect db 1, 2, 31, 32, 33, 120, 240) >> results.txt
