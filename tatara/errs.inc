@@ -6,7 +6,8 @@
 ;
 ; EVERY ONE OF THESE PRINTS AND TERMINATES. None of them returns, so a
 ; caller reaches one with jp or jr and never has to think about what
-; comes back.
+; comes back. The one exception is errtrl at the foot of the file,
+; which is a printer rather than an error and does come back.
 ;
 ; This file exists because the SOLID assembler resolves an undeclared
 ; symbol to 0000h and writes the .com anyway. A module's export list is
@@ -127,6 +128,16 @@
 		extrn errjr		; a JR or DJNZ displacement that does
 					; not fit a signed byte
 		extrn errbit		; a bit number that is not 0 to 7
+
+; --- and one that is NOT an error, and DOES return.
+
+		extrn errtrl		; print how we got to the line that
+					; failed: one line per level of the
+					; source stack, innermost first.
+					; errdie calls it, and so does
+					; main.noinc, which prints its own
+					; first line and wants the rest of
+					; the chain under it
 
 		endif
 

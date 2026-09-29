@@ -1420,6 +1420,11 @@ main.noinc:	ld	de,msg_noopn	; the same wording as a bad source
 		call	putdec
 		ld	de,msg_rpar
 		system	_STROUT
+		call	errtrl		; and the rest of the chain. The
+					; failed include was never pushed, so
+					; the top of the stack is the file
+					; named above - which errtrl skips,
+					; exactly as it does for errdie
 		jp	dosexit
 
 main.noopen:	ld	de,msg_noopn

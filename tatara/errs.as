@@ -36,6 +36,8 @@ ERRSLIB		equ	1		; skips the externals in errs.inc
 		public	errgrp
 		public	errngrp
 		public	errnlab
+		public	errtrl		; not an error: the trail printer,
+					;   which main.noinc needs too
 		public	errmseg
 		public	errmdef
 		public	errext
@@ -502,6 +504,10 @@ errtrl.p2:	push	de
 		call	putdec
 		ld	de,msg_cb2
 		call	putsz
+		jr	errtrl.nx	; NOT a fall-through: the file branch
+					;   sits between this and errtrl.nx,
+					;   and a macro level must not reach
+					;   it
 
 ; A file level. LS_FILE and LS_LINE are bytes of the entry itself, in
 ; ordinary RAM, so there is no page 2 rule to keep here - only the

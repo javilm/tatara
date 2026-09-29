@@ -181,6 +181,9 @@ tatara /q /p inctrl.as >> results.txt
 echo === INCTRLM.AS (expect called from, then ONE included from) >> results.txt
 tatara /q /p inctrlm.as >> results.txt
 
+echo === NESTMISS.AS (expect cannot open, then MIDMISS.INC and NESTMISS.AS) >> results.txt
+tatara /q /p nestmiss.as >> results.txt
+
 rem --- the symbol table
 
 echo === SYMLONG.AS (expect db 1, 2, 31, 32, 33, 120, 240) >> results.txt
