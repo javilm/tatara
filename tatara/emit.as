@@ -1100,6 +1100,14 @@ emitchr:	ld	(elnchr),a
 ; Modifies:	AF, BC, DE, HL
 
 lstbody:	ld	c,a		; the length: emitinit leaves BC alone
+		ld	a,(optflds)	; /F REPLACES THE LISTING WITH THE
+		or	a		;   FIELD DUMP, and main.emit refuses
+		ret	nz		;   lstline for that reason. THIS IS
+					;   THE OTHER WAY IN: the MACRO line,
+					;   every line of a body as macdef
+					;   reads it, and REPT, IRP and IRPC.
+					;   One guard here rather than five at
+					;   the callers - issue #20
 		ld	b,0		; no label, so no address column
 		ld	hl,0
 		xor	a		; and no segment: nothing shows either

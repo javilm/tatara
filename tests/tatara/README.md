@@ -1,6 +1,6 @@
 # The assembler's tests
 
-212 sources and 279 checks, run by one script.
+214 sources and 282 checks, run by one script.
 
 ```
 tests

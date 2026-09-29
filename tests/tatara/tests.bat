@@ -785,6 +785,16 @@ type m80ref\pagenum.prn >> results.txt
 echo === PAGENUM.AS /S (expect an EMPTY symbol table - a form feed defines nothing) >> results.txt
 tatara /q /p /s pagenum.as >> results.txt
 
+echo === PUBDEFL.AS /S (expect a space between public var and the name) >> results.txt
+tatara /q /p /s pubdefl.as >> results.txt
+
+echo === FLDMAC.AS /F /P (expect field dumps and NO macro body, NO page heading) >> results.txt
+tatara /q /p /f fldmac.as >> results.txt
+
+echo === EXTT.AS /L to a file (expect E1 and E2 as 0000 and a star) >> results.txt
+tatara /q /l extt.as extt.tro extt.prn
+type extt.prn >> results.txt
+
 echo === M80 FCONDD.AS - IS THE DEFAULT TO LIST THEM? >> results.txt
 type m80ref\fcondd.prn >> results.txt
 

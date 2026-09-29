@@ -470,18 +470,34 @@ lsym.lp:	ld	ix,symtab
 		inc	hl
 		ld	a,(hl)
 		ld	(lsseg),a
-		push	de
+
+		inc	hl		; SY_FLAGS. AN EXTERNAL'S SY_VAL IS
+		ld	a,(hl)		;   ITS INDEX, not a value - symext
+		and	SYF_EXT		;   keeps it there because that is
+		jr	z,lsym.seg	;   where an external record's number
+		ld	a,"*"		;   lives - so printing it gives 0000,
+		ld	(lsmark),a	;   0001 and an empty mark, which
+		ld	de,0		;   reads as an absolute symbol worth
+		jr	lsym.num	;   nothing. M80 prints the address of
+					;   the LAST USE and a star; we have no
+					;   such address (see 091) and print
+					;   0000 with the star, which at least
+					;   cannot be mistaken for a value
+lsym.seg:	ld	a,(lsseg)
+		or	a
+		ld	a," "
+		jr	z,lsym.mk
+		ld	a,"'"
+lsym.mk:	ld	(lsmark),a
+
+lsym.num:	push	de
 		ld	de,lsbuf	; four digits, then the mark
 		ld	h,d
 		ld	l,e
 		pop	de
 		ex	de,hl
 		call	numhex
-		ld	a,(lsseg)
-		or	a
-		ld	a," "
-		jr	z,lsym.abs
-		ld	a,"'"
+		ld	a,(lsmark)
 lsym.abs:	ld	(de),a
 		ld	de,lsbuf
 		ld	a,5
@@ -1081,10 +1097,12 @@ msg_sdnon:	defb	"(no symbols)",CHR_CR,CHR_LF,"$"
 msg_sdext:	defb	"EXTERNAL - resolved by the linker$"
 msg_sdund:	defb	"UNDEFINED - named by PUBLIC, never defined$"
 msg_sdind:	defb	"                  $"
-msg_sdloc:	defb	"          $"
-msg_sdpub:	defb	"public    $"
-msg_sdvar:	defb	"var       $"
-msg_sdpv:	defb	"public var$"
+msg_sdloc:	defb	"           $"	; ELEVEN, not ten: "public var" is
+msg_sdpub:	defb	"public     $"	;   ten exactly and left the name
+msg_sdvar:	defb	"var        $"	;   with nowhere to start. It also
+msg_sdpv:	defb	"public var $"	;   puts these names at column 18,
+					;   where msg_sdind has always put
+					;   the address-less sections'
 msg_sdnl:	defb	CHR_CR,CHR_LF,"$"
 
 ; --- the segments
@@ -1588,6 +1606,11 @@ sdhex:		defs	4	; numhex writes the digits HERE, and the
 lsiter:		defs	5	; and lstsyms's, over the same one
 lsbuf:		defs	5	; four digits and the relocation mark
 lsseg:		defs	1	; which segment this symbol is in
+lsmark:		defs	1	; the character after its four digits:
+				;   " " absolute, "'" relocatable, "*"
+				;   external - and the last of those is
+				;   why this is a byte and not a test
+				;   made twice
 lscol:		defs	1	; how many are on this line, 0 to 2
 extnum:		defs	1	; the next external index to hand out
 symtab:		defs	2+SYBUCKS*4

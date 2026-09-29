@@ -1239,7 +1239,16 @@ main.fin2:
 ; run: every macro's descriptor and body are still there, and should be.
 ; The number is only useful compared against another run - see HEAP1.AS
 ; and HEAP2.AS in the tests, which differ only in how many times the same
-; macro is expanded and must print the same figure.
+; macro is expanded and print the same figure.
+;
+; THAT HOLDS ONLY FOR A MACRO THAT DEFINES NO SYMBOLS, which is what
+; those two are: a REPT of "db a,b" and no LOCAL. hash.as calls halloc
+; once per record, so EVERY SYMBOL IS A BLOCK, and a LOCAL name becomes
+; one symbol per expansion - ??0000, ??0001, ??0002 - which live to the
+; end of the assembly because pass 2, forward references and the
+; listing's last page all need them. Three expansions of a macro with a
+; LOCAL therefore leave two more blocks than one expansion does, and
+; nothing is leaking. Issue #19, which is why this paragraph exists.
 
 main.heap:	ld	de,msg_hbk1
 		call	putstr
