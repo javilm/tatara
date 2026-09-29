@@ -14,6 +14,14 @@
 					;               nothing
 		extrn cndeof		; the end of the source: nothing may
 					;   still be open
+		extrn cndlab		; was the line just read being
+					; assembled? A byte, written by
+					; cndskip: 0FFh yes, 0 no. main.loop
+					; reads it after cndline has returned,
+					; to decide whether a label on an IF,
+					; ELSE or ENDIF line is defined - by
+					; then the state it was decided by has
+					; already changed
 		extrn cnddep		; how many conditionals are open. A
 					; variable, not a routine: EXITM has to
 					; unwind the ones its expansion opened,

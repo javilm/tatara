@@ -752,6 +752,18 @@ tatara /q /p /l p2equ.as >> results.txt
 echo === P2IF1.AS (expect defined on pass 1 and not on pass 2, line 9) >> results.txt
 tatara /q /p p2if1.as >> results.txt
 
+echo === LABIF.AS (expect FIRST at 0000 and SECOND at 0001, and both dw) >> results.txt
+tatara /q /p /l labif.as >> results.txt
+
+echo === LABCND.AS /S (expect LIF1 LELS LIF0 LRPT LEND2 defined, LEND not) >> results.txt
+tatara /q /p /l /s labcnd.as >> results.txt
+
+echo === LABUND.AS (expect undefined symbol, line 11) >> results.txt
+tatara /q /p labund.as >> results.txt
+
+echo === LABIRP.AS (expect 0104 holding 0100 and 0106 holding 0102) >> results.txt
+tatara /q /p /l labirp.as >> results.txt
+
 echo === M80 FCONDD.AS - IS THE DEFAULT TO LIST THEM? >> results.txt
 type m80ref\fcondd.prn >> results.txt
 

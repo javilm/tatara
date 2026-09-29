@@ -159,20 +159,36 @@ main.nofld:
 		ld	a,(dirnum)
 		call	cndline		; CY set = this line produces nothing
 		jr	nc,main.cnd0
-		call	emitskip	; and so names no place: a label on a
-					;   skipped line must not put the
-					;   location counter in the listing's
-					;   address column. M80 blanks it
 		ld	a,(dirnum)	; IT PRODUCES NOTHING FOR ONE OF TWO
 		cp	D_IF		;   REASONS, and the number says which:
 		jr	c,main.cskp	;   the IF family is contiguous, which
 		cp	D_ENDIF+1	;   is the same property cndline opens
-		jp	c,main.emit	;   with. A directive of its own, and
-					;   M80 lists those wherever they are
-main.cskp:	ld	a,(lstfc)	; a line inside a branch we are not
-		or	a		;   taking: .LFCOND shows it, .SFCOND
-		jp	nz,main.emit	;   does not, and either way nothing
-		jp	main.loop	;   on it is acted on
+		jr	nc,main.cskp	;   with
+
+; A directive of the IF family, on its own line. M80 lists those wherever
+; they are - AND DEFINES A LABEL ON ONE when the line is being assembled.
+; cndlab is that question answered before cndline changed the state, which
+; is the only moment it can be answered: "lels: else" is defined because
+; the branch ABOVE it was being taken, and "lend: endif" on the next line
+; is not, because by then we are inside the skipped ELSE. Issue #15.
+;
+; emitskip is NOT called on the defining path. emitinit recorded the label
+; before cndline ran, so the address column already holds what M80 prints
+; there - 085's mechanism, used the other way up.
+
+		ld	a,(cndlab)
+		or	a
+		jr	z,main.cfsk	; not being assembled: no label, and
+		call	deflab		;   no address either
+		jp	main.emit
+main.cfsk:	call	emitskip
+		jp	main.emit
+
+main.cskp:	call	emitskip	; a line inside a branch we are not
+		ld	a,(lstfc)	;   taking names no place: 085. And
+		or	a		;   .LFCOND shows it while .SFCOND
+		jp	nz,main.emit	;   does not - either way nothing on
+		jp	main.loop	;   it is acted on
 main.cnd0:
 
 		ld	a,(dirnum)	; cndline used A
@@ -421,7 +437,11 @@ main.nlw2:	inc	de
 ; after pass 2, because until then there is an unfinished DATA record
 ; in the file.
 
-main.end:	ld	a,(flds+FL_ARGL)
+main.end:	call	deflab		; "lend2: end" defines lend2 as the
+					;   counter, BEFORE the operand is
+					;   looked at - deflab's own rule for
+					;   ORG and DS. M80 lists 0103 there
+		ld	a,(flds+FL_ARGL)
 		or	a
 		jr	z,main.end2
 		ld	de,(flds+FL_ARG)
@@ -1038,7 +1058,10 @@ main.mac:	call	labcol		; a name, not a label - and BEFORE
 ; to be worked out BEFORE the body is collected: macdef's loop overwrites
 ; mdflds, and flds describes the REPT line only until the next getline.
 
-main.rept:	ld	de,(flds+FL_ARG)
+main.rept:	call	deflab		; "lrpt: rept 2" names the place the
+					;   first round will start at, which
+					;   is where M80 puts it
+		ld	de,(flds+FL_ARG)
 		ld	a,(flds+FL_ARGL)
 		call	evalabs		; HL = how many times: absolute only
 		ld	(reptn),hl
@@ -1067,6 +1090,10 @@ main.irpc:	ld	a,MDK_IRPC
 		jr	main.irp1
 main.irp:	ld	a,MDK_IRP
 main.irp1:	ld	(irpk),a
+		call	deflab		; as REPT above, and for both of them:
+					;   main.irp1 is below the two entry
+					;   points and above the dummy scan,
+					;   which reads flds again anyway
 
 		ld	hl,(flds+FL_ARG)	; find the dummy's comma
 		ld	a,(flds+FL_ARGL)

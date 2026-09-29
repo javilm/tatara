@@ -15,6 +15,10 @@ CNDLIB		equ	1		; skips the externals in cond.inc
 		public	cndinit
 		public	cndline
 		public	cndeof
+		public	cndlab		; was the line just read being
+					;   assembled? main.loop asks after
+					;   cndline has returned, by which
+					;   time the state has changed
 		public	cnddep		; how many conditionals are open.
 					;   expand.as reads it when an
 					;   expansion record is created and
@@ -97,6 +101,11 @@ cndline.psh:	call	cndpush
 cndline.els:	ld	a,(cnddep)
 		or	a
 		jp	z,errcond	; an ELSE with no IF open
+		call	cndskip		; BEFORE the state changes: an ELSE is
+					;   read while the branch ABOVE it is
+					;   still the current one, and M80
+					;   defines a label on it when THAT
+					;   branch was the one being assembled
 		call	cndtop
 		bit	7,a
 		jp	nz,errcond	; M80 allows only one ELSE per IF
@@ -115,8 +124,10 @@ cndline.el2:	or	CS_ELSE		; and it has had its ELSE now
 cndline.end:	ld	a,(cnddep)
 		or	a
 		jp	z,errcond	; an ENDIF with no IF open
-		dec	a
-		ld	(cnddep),a
+		call	cndskip		; BEFORE the level is closed: an ENDIF
+		ld	a,(cnddep)	;   that closes a SKIPPED branch names
+		dec	a		;   no place. cndskip clobbers A, so
+		ld	(cnddep),a	;   the depth is read again
 		scf
 		ret
 
@@ -125,18 +136,34 @@ cndline.end:	ld	a,(cnddep)
 ;   Only the innermost state is looked at. See the note at the top of the
 ;   file for why that is enough.
 ;
+;   IT ALSO WRITES cndlab, which is the same answer kept for main.loop.
+;   A label on a line that emits nothing takes the location counter if
+;   that line is being assembled - M80 does it for the whole IF family,
+;   for REPT, IRP and IRPC, and for END - and by the time cndline
+;   returns, the state it was decided by has already changed. Recording
+;   it here costs nine bytes and covers every caller: the opener path
+;   was already calling this routine before it pushed, and ELSE and
+;   ENDIF now call it before they act.
+;
 ; Input:	nothing
 ; Output:	CY set = skipping
+;		(cndlab) = 0FFh emitting, 0 skipping
 ; Modifies:	AF, DE, HL
 
-cndskip:	ld	a,(cnddep)
+cndskip:	ld	a,0ffh		; ASSUME EMITTING, and say so first:
+		ld	(cndlab),a	;   the two exits below that mean
+					;   emitting are the common ones, and
+					;   neither has to repeat it
+		ld	a,(cnddep)
 		or	a
 		ret	z		; nothing open: emitting, CY clear
 		call	cndtop
 		and	07fh		; the ELSE-seen bit is not a state,
 		ret	z		; and CS_TAKE is 0, so this clears CY
-		scf
-		ret
+		xor	a		; skipping: and no label on this line
+		ld	(cndlab),a	;   either. xor a CLEARS CY, which is
+		scf			;   why the scf comes after it and not
+		ret			;   before
 
 ; cndtop - the innermost open conditional's state byte.
 ;
@@ -515,6 +542,10 @@ cndaws.s:	inc	hl
 		dseg
 
 cnddep:		defs	1		; how many conditionals are open
+cndlab:		defs	1		; cndskip's answer, kept for main.loop:
+					;   0FFh = the line just read was being
+					;   assembled, so a label on it is
+					;   defined
 cndstk:		defs	MAXCND		; one state byte each
 cnddir:		defs	1		; the opener cndtest is working on
 cn0fil:		defs	1		; cndpush: where the outermost open

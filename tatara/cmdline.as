@@ -308,7 +308,7 @@ cpname.end:	xor	a
 
 ; THE VERSION IS WRITTEN ONCE, and these two labels are adjacent on
 ; purpose. vertxt is the thirteen bytes the listing's page header
-; wants - "Tatara v" is eight and "1.1.4" is five - because msg_vnum
+; wants - "Tatara v" is eight and "1.1.5" is five - because msg_vnum
 ; follows it in memory. msg_vnum on its own is the number with a "$"
 ; behind it, which is what cmdver prints between the two halves of
 ; the banner.
@@ -319,7 +319,7 @@ cpname.end:	xor	a
 ; all, so LSTNAMW and these two labels have to be changed together.
 
 vertxt:		defb	"Tatara v"
-msg_vnum:	defb	"1.1.4","$"
+msg_vnum:	defb	"1.1.5","$"
 
 msg_ban1:	defb	"Tatara MSX Macro-Assembler v$"
 msg_ban2:	defb	CHR_CR,CHR_LF

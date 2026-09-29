@@ -1,6 +1,6 @@
 # The assembler's tests
 
-206 sources and 270 checks, run by one script.
+210 sources and 274 checks, run by one script.
 
 ```
 tests
@@ -30,7 +30,10 @@ symbols, by the directive and by the second colon. Where a
 label may sit: column 1 with the colon optional, indented with the
 colon required. And the two readings agreeing with each other: a label
 an include guard defines on the first pass and skips on the second is
-an error, while the same guard around equates is not.
+an error, while the same guard around equates is not. Labels on lines
+that emit no bytes - `IF`, `ELSE`, `ENDIF`, `REPT`, `IRP`, `IRPC` and
+`END` - which M80 defines when the line is being assembled and not
+otherwise.
 
 Many tests are deliberately wrong programs: the expectation in the
 marker line is an error message and its position.

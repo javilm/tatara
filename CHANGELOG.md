@@ -2,6 +2,45 @@
 
 Tatara and Tanren. Newest first.
 
+## v1.1.5 - 2026-09-29
+
+- An error inside an included file now prints the chain that led to it:
+  one `included from FILE(line)` for each file above it, innermost
+  first. Before, only the file the error was in was named, which is no
+  help when two directories each hold a file of the same name. A macro
+  already names its own call site, so nothing is said twice.
+- The summary line reads `ended at FILE(line)` instead of `FILE: N
+  lines.` The number never was a count: it is the line the assembly
+  ended on. `END` inside an included file ends that file and every file
+  above it, so the name here is where assembly stopped and not always
+  the file you named on the command line.
+- The `included from` line printed after a `cannot open` error is
+  indented four spaces, matching the trail printed under every other
+  error. It used to be seven, and the two lines say the same thing.
+- An INCLUDE that cannot be found inside an included file now prints
+  the whole chain that led to it, not just the line the failing INCLUDE
+  was on.
+- A line inside a conditional branch that is not taken no longer shows
+  the location counter in the listing's address column when it carries
+  a label. M80 leaves the column blank there, and a skipped EQU showing
+  an address read as a symbol with the wrong value.
+- A label on a line that emits no bytes is now defined, as M80 defines
+  it: on `IF`, `ELSE` and `ENDIF` lines, and on `REPT`, `IRP`, `IRPC`
+  and `END`. It takes the location counter, and only when that line is
+  being assembled - a label on an `ENDIF` that closes a branch which was
+  skipped stays undefined, exactly as it does in M80. Before, all of
+  these were silently dropped and any reference to one failed with
+  `undefined symbol in an expression` pointing at the reference rather
+  than at the label.
+- A label that the first reading of the source defines and the second
+  one skips is now an error, naming the line the label is on. An
+  `IFNDEF` guard is set on pass 1 and still set on pass 2, so a guarded
+  block holding code is assembled once and skipped once: the label
+  keeps the address pass 1 gave it and its bytes never reach the object
+  file. M80 writes the short program without a word. A guard around
+  equates only is unaffected and stays legal - those keep their values
+  and are correct.
+
 ## v1.1.4 - 2026-09-28
 
 - `name::` declares `name` PUBLIC, which is what M80 does. Tatara had
