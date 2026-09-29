@@ -28,7 +28,7 @@ Where the MSX has an official name, that is the name here, taken from the MSX Da
 
 **`subrom.inc` prefixes every name `SUBROM_`.** The SUB ROM reuses MAIN ROM names for different routines at different addresses - `GRPPRT` is 008Dh in the MAIN ROM and 0089h in the SUB ROM - so without the prefix this file and `bios.inc` could not both be included.
 
-**`msxdos.inc` defines a macro** as well as the function numbers. `system func` loads C and calls BDOS, and it is wrapped in `IFNDEF` so that a program whose modules each include the file still assembles.
+**`msxdos.inc` defines a macro** as well as the function numbers. `system func` loads C and calls BDOS.
 
 **Two hooks have two names.** MSX-MIDI renamed 0FF75h and 0FF93h, and `hooks.inc` carries the old name and the new one for each. They are the same five bytes, not four hooks.
 
