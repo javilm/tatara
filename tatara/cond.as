@@ -36,7 +36,6 @@ CNDLIB		equ	1		; skips the externals in cond.inc
 		include	ascii.inc
 
 		include	errs.inc
-		include	strutil.inc	; strupr: IFIDN compares without case
 		include	srcline.inc	; curfile/curline: where the line just
 					;   handed over came from. cndpush
 					;   records them for the outermost open
@@ -370,7 +369,18 @@ cnddef:		ld	e,(ix+FL_ARG)
 		ex	(sp),hl
 		ret
 
-; cndcmp - are arguments 0 and 1 the same text, ignoring case?
+; cndcmp - are arguments 0 and 1 the same text?
+;
+;   EXACTLY THE SAME TEXT, case included. M80 compares these byte for
+;   byte - IFCASE.AS, cross-checked in m80ref - and it is not simply
+;   upper-casing the source on the way in: a macro's dummy parameter IS
+;   matched ignoring case in the same assembler (PCASE.AS, and mdplook
+;   in macros.as does the same). A NAME is matched ignoring case; IFIDN
+;   and IFDIF compare TEXT, and text is compared exactly.
+;
+;   This folded until 089, in both modes, and /C had nothing to do with
+;   it either way: /C makes NAMES case-sensitive, and this was never a
+;   name. The bug was in the default mode.
 ;
 ;   Argument 0 has to be copied out of the way first - only its address
 ;   and length, not its text - because finding argument 1 overwrites
@@ -378,7 +388,7 @@ cnddef:		ld	e,(ix+FL_ARG)
 ;
 ; Input:	IX -> the field block
 ; Output:	Z set = identical
-; Modifies:	AF, BC, DE, HL
+; Modifies:	AF, C, DE, HL
 
 cndcmp:		xor	a
 		call	cndarg
@@ -394,12 +404,9 @@ cndcmp:		xor	a
 		ld	c,a		; C = characters to compare
 		ld	hl,(cnaptr)
 cndcmp.ch:	ld	a,(de)
-		call	strupr
-		ld	b,a
-		ld	a,(hl)
-		call	strupr
-		cp	b
-		ret	nz
+		cp	(hl)		; the bytes, as they were written. B
+		ret	nz		;   held the folded copy and is now
+					;   not touched at all
 		inc	hl
 		inc	de
 		dec	c

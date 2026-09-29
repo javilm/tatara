@@ -823,7 +823,17 @@ mdput:		push	af
 
 ; mdplook - is this identifier one of the names?
 ;
-;   Compared ignoring case, like every other name M80 matches.
+;   COMPARED IGNORING CASE, AND M80 WAS ASKED: PCASE.AS declares the
+;   dummy as "Xx", writes "db XX" in the body, and M80 assembles 07 with
+;   no error. So this is right, and it stays right in both modes - a
+;   dummy parameter is a NAME.
+;
+;   "Like every other name M80 matches" is what this comment used to
+;   say, and /C made that false: symbols, macro names, segment and group
+;   names follow the command line, while these and the directive,
+;   mnemonic and register tables do not (R2). The distinction that
+;   survives is names against text - see cndcmp in cond.as, which
+;   compares text and was folding it until 089.
 ;
 ;   The index is "how many parameters there are" minus "how many are left
 ;   to try", so no separate counter is carried round the loop.

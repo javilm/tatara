@@ -1,0 +1,25 @@
+	MSX.M-80 2.00	30-Sep-26	PAGE	1
+
+
+                                	ifidn	<abc>,<ABC>
+                                	db	1
+                                	endif
+                                	ifidn	<abc>,<abc>
+  0000'   02                    	db	2
+                                	endif
+                                	ifdif	<abc>,<ABC>
+  0001'   03                    	db	3
+                                	endif
+                                	end
+	MSX.M-80 2.00	30-Sep-26	PAGE	S
+
+
+Macros:
+
+Symbols:
+
+
+
+No Fatal error(s)
+
+

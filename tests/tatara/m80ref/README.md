@@ -1,6 +1,6 @@
 # m80ref
 
-Fifty listing files, one per test that is cross-checked against
+Fifty-one listing files, one per test that is cross-checked against
 Microsoft's M80.
 
 `TESTS.BAT` prints each of these into `RESULTS.TXT` beside Tatara's

@@ -1,6 +1,6 @@
 # The assembler's tests
 
-210 sources and 274 checks, run by one script.
+211 sources and 276 checks, run by one script.
 
 ```
 tests
@@ -40,7 +40,7 @@ marker line is an error message and its position.
 
 ## m80ref
 
-Fifty of the tests are cross-checked against Microsoft's M80. Its
+Fifty-one of the tests are cross-checked against Microsoft's M80. Its
 listings are frozen in `m80ref/` and printed into `RESULTS.TXT` beside
 Tatara's own, so that `cmpm80.py` can compare address, relocation mark
 and bytes for every line that emitted any. That is the only

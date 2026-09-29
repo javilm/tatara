@@ -13,7 +13,7 @@ defarg	macro	a,b
 	endm
 	defarg	x
 	defarg	x,1234h
-	ifidn	<abc>,<ABC>
+	ifidn	<abc>,<abc>
 	db	'same'
 	endif
 	ifdif	<abc>,<xyz>

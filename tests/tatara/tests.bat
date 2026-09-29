@@ -764,6 +764,12 @@ tatara /q /p labund.as >> results.txt
 echo === LABIRP.AS (expect 0104 holding 0100 and 0106 holding 0102) >> results.txt
 tatara /q /p /l labirp.as >> results.txt
 
+echo === IFCASE.AS (expect 02 and 03 and no 01 - text is compared exactly) >> results.txt
+tatara /q /p /l ifcase.as >> results.txt
+
+echo === M80 IFCASE.AS - IS TEXT COMPARED EXACTLY? >> results.txt
+type m80ref\ifcase.prn >> results.txt
+
 echo === M80 FCONDD.AS - IS THE DEFAULT TO LIST THEM? >> results.txt
 type m80ref\fcondd.prn >> results.txt
 
