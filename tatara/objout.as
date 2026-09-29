@@ -32,6 +32,7 @@ OBJLIB		equ	1		; skips the externals in objout.inc
 		public	objfix
 		public	objentr
 		public	objfin
+		public	objkill
 		public	objon
 
 		include	objout.inc
@@ -920,6 +921,44 @@ objfin:		ld	a,(objon)
 		ld	a,(objhand)
 		ld	b,a
 		system	_CLOSE
+		ret
+
+; objkill - close the object file and delete it.
+;
+;   CALLED FROM errdie, and from nowhere else. objopen creates the file
+;   at the start of pass 2 - deliberately, so that a source which fails
+;   on pass 1 cannot truncate a file the user already had - and an error
+;   on pass 2 therefore leaves one with the right name, the current
+;   timestamp and part of the content. Nothing about it says it is
+;   rubbish, and the file it replaced is gone. Issue #22.
+;
+;   objon IS THE WHOLE OF THE CARE HERE. errdie also fires on pass 1, on
+;   a command-line error, under /P and when _CREATE itself failed, and in
+;   every one of those a file of this name may be the user's from an
+;   earlier run. Deleting it would turn an error into data loss, which is
+;   a worse fault than the one this routine fixes. objopen clears objon
+;   before anything can go wrong and sets it only once _CREATE has handed
+;   back a handle, so it says "this run made a file", which is exactly
+;   the question.
+;
+;   The handle is closed before the delete rather than after, or not at
+;   all: deleting a file that is still open is a question about MSX-DOS
+;   2's internals nobody needs answered.
+;
+; Input:	nothing (objon, objhand, dstname)
+; Output:	no object file of this run's making is left on disk
+; Modifies:	AF, BC, DE, HL
+
+objkill:	ld	a,(objon)
+		or	a
+		ret	z		; none created this run
+		xor	a
+		ld	(objon),a	; it is going, so nothing may write
+		ld	a,(objhand)	;   to it either
+		ld	b,a
+		system	_CLOSE
+		ld	de,dstname
+		system	_DELETE
 		ret
 
 ; objbase - the module's name: the TITLE's first six characters, or

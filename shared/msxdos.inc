@@ -16,6 +16,9 @@ _STROUT		equ	00009h		; print the "$"-terminated string at DE
 _OPEN		equ	00043h		; open an existing file
 _CREATE		equ	00044h		; create a file
 _CLOSE		equ	00045h		; close a file handle
+_DELETE		equ	0004dh		; delete the file DE names, zero-
+					;   terminated. MSX-DOS 2 only, like
+					;   the handle calls around it
 _READ		equ	00048h		; read from a file handle
 _WRITE		equ	00049h		; write to a file handle
 _SEEK		equ	0004ah		; move a file handle's pointer.

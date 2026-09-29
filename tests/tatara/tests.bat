@@ -798,6 +798,12 @@ type extt.prn >> results.txt
 echo === M80 FCONDD.AS - IS THE DEFAULT TO LIST THEM? >> results.txt
 type m80ref\fcondd.prn >> results.txt
 
+echo === PHASEOBJ.AS (expect a phase error, and an object file was named) >> results.txt
+tatara /q phaseobj.as phaseobj.tro >> results.txt
+
+echo === PHASEOBJ.TRO after that failure (expect NOTHING under this line) >> results.txt
+if exist phaseobj.tro echo *** IT SURVIVED: a failed pass 2 left an object file >> results.txt
+
 echo === M80 EQULIST.AS - COUNTER OR VALUE BESIDE AN EQU? >> results.txt
 type m80ref\equlist.prn >> results.txt
 
@@ -806,6 +812,12 @@ tatara /q objdata.as objdata.tro >> results.txt
 
 echo === PUBUNDF.AS (expect a PUBLIC name was never defined) >> results.txt
 tatara /q pubundf.as pubundf.tro >> results.txt
+
+rem AN EMPTY SECTION IS THE PASS. if exist is the only test this batch
+rem language is known to have - line 33 uses it too - so the check can
+rem only shout when it is wrong, and silence is the answer we want.
+echo === PUBUNDF.TRO after that failure (expect NOTHING under this line) >> results.txt
+if exist pubundf.tro echo *** IT SURVIVED: a failed pass 2 left an object file >> results.txt
 
 echo === M80 PUBUNDF.AS - WHAT DOES M80 SAY ABOUT AN UNDEFINED PUBLIC? >> results.txt
 type m80ref\pubundf.prn >> results.txt

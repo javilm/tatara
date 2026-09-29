@@ -58,6 +58,8 @@ ERRSLIB		equ	1		; skips the externals in errs.inc
 
 		include	errs.inc
 		include	msxdos.inc
+		include	objout.inc	; objkill: the object file goes with
+					;   the error - 092
 		include	ascii.inc
 		include	srcline.inc	; the stack, curfile/curline, entaddr
 		include	mdt.inc		; the expansion record's fields
@@ -423,6 +425,15 @@ errdie.msg:	ld	de,msg_err	; THE ONE COPY. Sixty-four messages
 		ld	de,(ermsg)	;
 		call	putstr
 		call	errtrl
+		call	objkill		; AND THE OBJECT FILE GOES WITH IT.
+					;   It was created at the start of
+					;   pass 2 and is part written; a
+					;   half-built object with the right
+					;   name is the one thing here that
+					;   another program will read. Issue
+					;   #22, and objkill's own comment
+					;   for why a file this run did not
+					;   create is safe
 		jp	dosexit
 
 ; errtrl - print how we got here: one line per macro expansion on the

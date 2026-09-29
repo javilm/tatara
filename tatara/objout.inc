@@ -48,6 +48,15 @@
 		extrn objfin		; the last run, the fixups, the
 					; entry point, the END record, and
 					; close
+		extrn objkill		; close the object file and DELETE
+					; it, if this run created one. For
+					; errdie: an error on pass 2 must
+					; not leave a partial object with
+					; the right name and a current
+					; timestamp. Does nothing when
+					; objon is 0, which is what keeps
+					; it from removing a file an
+					; earlier run left
 		extrn objon		; A BYTE: 0 = no object file was
 					; named, and the three above are
 					; each a single ret
