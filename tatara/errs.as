@@ -30,6 +30,7 @@ ERRSLIB		equ	1		; skips the externals in errs.inc
 		public	errexit
 		public	errplst
 		public	errphase
+		public	errp2lab
 		public	errrel
 		public	errseg
 		public	errsflg
@@ -197,6 +198,18 @@ errexit:	ld	de,msg_exit
 ; label's own line. Does not return.
 errphase:	ld	de,msg_phase
 		jp	errdie
+
+; errp2lab - a label that the FIRST reading of the source defined and
+; the second did not: a conditional - an IFDEF or IFNDEF guard, all but
+; always - was true on pass 1 and false on pass 2, so the block was
+; skipped and its bytes were never emitted, while everything that
+; referred to the label still points where pass 1 put it. M80 prints
+; nothing and writes the short program; symp2's comment says why we do
+; not. Called with A/HL = the label's own line, like errnoend: this
+; fires at the end of pass 2, where curline is the END line. Does not
+; return.
+errp2lab:	ld	de,msg_p2lab
+		jp	errdiea
 
 ; errrel - a relocatable value used where only an absolute one makes
 ; sense: multiplied, compared, HIGH/LOW, added to another relocatable,
@@ -616,6 +629,9 @@ msg_exit:	defb	"EXITM outside a macro or repeat block.",CHR_CR
 		defb	CHR_LF,"$"
 msg_phase:	defb	"phase error - this label had a different"
 		defb	" value on pass 1.",CHR_CR,CHR_LF,"$"
+msg_p2lab:	defb	"this label was defined on pass 1 and not"
+		defb	" on pass 2 - a conditional skipped it."
+		defb	CHR_CR,CHR_LF,"$"
 msg_rel:	defb	"relocation error - a segment-relative"
 		defb	" value is not allowed here.",CHR_CR,CHR_LF,"$"
 msg_seg:	defb	"bad ASEG, CSEG or DSEG line.",CHR_CR

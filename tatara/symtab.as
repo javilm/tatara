@@ -26,6 +26,7 @@ SYMLIB		equ	1		; skips the externals in symtab.inc
 		public	symdef
 		public	sympub
 		public	symext
+		public	symp2
 		public	symdump
 		public	lstsyms
 		public	seginit
@@ -183,6 +184,13 @@ symlook:	ld	a,b
 ;                                   because the SAME line answered
 ;                                   differently the second time
 ;
+;   AND ONE MARK, which symp2 reads at the end of pass 2: every
+;   definition made while pass 2 runs sets SYF_P2, so a label that
+;   still lacks it is one the second reading never reached. THE EARLY
+;   RETURN BELOW IS ON THAT PATH - "same value, nothing to do" is what
+;   every unchanged label does on pass 2, and it has to mark before it
+;   returns or every label in the program is reported.
+;
 ; Input:	DE -> the name
 ; 		B  = its length
 ; 		HL = the value
@@ -228,7 +236,10 @@ symdef:		ld	(syval),hl	; the same scratch symset uses
 		ld	a,(sdoldt)
 		ld	hl,sytyp
 		cp	(hl)
-		ret	z		; and the same segment: nothing to do
+		jr	z,symdef.mrk	; and the same segment: nothing to
+					;   STORE. THE MARK STILL GOES ON:
+					;   this is the path every unchanged
+					;   label takes on pass 2
 symdef.dif:	ld	a,(passno)
 		dec	a
 		jp	z,errmdef	; pass 1: the source says it twice
@@ -246,6 +257,37 @@ symdef.put:	ld	hl,(syval)
 		ld	a,(sydflg)
 		or	SYF_DEF
 		or	(hl)
+		ld	(hl),a
+		and	SYF_LBL		; A LABEL, and only a label, keeps
+		jr	z,symdef.mrk	;   the line it was written on: it
+		inc	hl		;   is the only kind symp2 checks,
+		ld	a,(curfile)	;   and the only one whose position
+		ld	(hl),a		;   an error would want. The window
+		inc	hl		;   is still mapped - nothing has
+		ld	de,(curline)	;   called BDOS since the flags went
+		ld	(hl),e		;   in
+		inc	hl
+		ld	(hl),d
+
+; symdef.mrk - "this symbol was defined on THIS reading of the source".
+;
+;   PASS 1 SETS NOTHING. The bit means pass 2, so leaving it clear on
+;   the first reading is what lets symp2 be one walk after pass 2
+;   rather than a walk to clear the bits before it and a walk to read
+;   them after.
+;
+;   derefp again, and not the HL the caller is holding: both paths in
+;   have the window mapped, but one of them arrived without touching
+;   it, and a deref is cheaper than a rule about which.
+
+symdef.mrk:	ld	a,(passno)
+		cp	2
+		ret	nz		; pass 1: the bit is pass 2's
+		derefp	sypay
+		ld	de,SY_FLAGS
+		add	hl,de
+		ld	a,(hl)
+		or	SYF_P2
 		ld	(hl),a
 		ret
 
@@ -327,6 +369,72 @@ symext.new:	ld	a,(extnum)	; its index
 		ld	a,SY_ABS
 		ld	c,SYF_EXT
 		jp	symdef
+
+; symp2 - every label that pass 1 defined and pass 2 did not.
+;
+;   A GUARD KEYED ON A SYMBOL FIRES ONCE PER PROGRAM, not once per
+;   pass: the symbol table survives between the two readings, so
+;   "ifndef gcode_inc" is true the first time and false the second and
+;   the block inside it is skipped. A label in there keeps its pass-1
+;   value while its bytes are never emitted, so "call shared" assembles
+;   to the right address and the routine it calls is not in the file.
+;   Issue #12.
+;
+;   deflab's pass-2 agreement check cannot see this: errphase fires on
+;   a label that answers differently the second time, and this is a
+;   label that does not answer at all.
+;
+;   M80 prints nothing here (2.6.26 of the manual documents the
+;   asymmetry as expected behaviour) and writes the short program. This
+;   is the third deliberate departure, after errnoop and the second
+;   label, and for the same reason: a silent wrong answer costs more
+;   than an incompatibility nobody relies on deliberately.
+;
+;   LABELS ONLY. A guarded include holding nothing but EQUs is skipped
+;   on pass 2 in exactly the same way and NOTHING IS WRONG WITH IT -
+;   the equates keep their pass-1 values and every reference resolves
+;   to them. Reporting those would outlaw the one form of the idiom
+;   that works, which is what SYF_LBL is for.
+;
+;   SYF_DEF and SYF_EXT need no test. SYF_LBL is set in one place,
+;   deflab, which always defines - so SYF_DEF always rides with it -
+;   and a name cannot be a label and external both without errmdef
+;   having fired on pass 1.
+;
+;   It borrows sditer and sdpay from symdump below. The two never run
+;   at once: this one is the first thing main.fin does, symdump is
+;   several calls later, and if this one finds anything it does not
+;   return.
+;
+; Input:	nothing (the table, SYF_LBL and SYF_P2)
+; Output:	nothing, if every label was defined twice
+;		(errp2lab does not return)
+; Modifies:	everything
+
+symp2:		xor	a
+		ld	(sditer),a	; start the walk
+		ld	hl,NULLOFF
+		ld	(sditer+3),hl
+symp2.lp:	ld	ix,symtab
+		ld	hl,sditer
+		call	htnext
+		ret	c		; the whole table is clean
+		call	sdpay
+		ld	de,SY_FLAGS
+		add	hl,de
+		ld	a,(hl)
+		and	SYF_LBL+SYF_P2
+		cp	SYF_LBL
+		jr	nz,symp2.lp	; not a label, or the second reading
+					;   defined it too
+		inc	hl		; SY_FILE and SY_LINE: the line the
+		ld	a,(hl)		;   label itself was written on,
+		inc	hl		;   which is where the error points -
+		ld	e,(hl)		;   curline is the END line by now
+		inc	hl
+		ld	d,(hl)
+		ex	de,hl		; A = the file, HL = the line
+		jp	errp2lab
 
 ; lstsyms - every symbol, in M80's columns, for the listing's last
 ;   page: four hex digits, the relocation mark, three spaces, and the

@@ -743,6 +743,15 @@ tatara /q /p /l fcondd.as >> results.txt
 echo === FCONDLAB.AS /S (expect no address on LAB or VAL, and only T0 defined) >> results.txt
 tatara /q /p /l /s fcondlab.as >> results.txt
 
+echo === P2LAB.AS (expect defined on pass 1 and not on pass 2, P2LAB.INC line 7) >> results.txt
+tatara /q /p p2lab.as >> results.txt
+
+echo === P2EQU.AS (expect a clean assembly, with 3E 05 at 0100h) >> results.txt
+tatara /q /p /l p2equ.as >> results.txt
+
+echo === P2IF1.AS (expect defined on pass 1 and not on pass 2, line 9) >> results.txt
+tatara /q /p p2if1.as >> results.txt
+
 echo === M80 FCONDD.AS - IS THE DEFAULT TO LIST THEM? >> results.txt
 type m80ref\fcondd.prn >> results.txt
 

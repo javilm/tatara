@@ -1,6 +1,6 @@
 # The assembler's tests
 
-203 sources and 267 checks, run by one script.
+206 sources and 270 checks, run by one script.
 
 ```
 tests
@@ -28,7 +28,9 @@ The instruction table and every addressing form. Listings: pagination,
 output, and the include search with its environment variable. Public
 symbols, by the directive and by the second colon. Where a
 label may sit: column 1 with the colon optional, indented with the
-colon required.
+colon required. And the two readings agreeing with each other: a label
+an include guard defines on the first pass and skips on the second is
+an error, while the same guard around equates is not.
 
 Many tests are deliberately wrong programs: the expectation in the
 marker line is an error message and its position.

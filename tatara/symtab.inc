@@ -40,6 +40,17 @@
 					; it the next external index
 					; in:  DE -> the name
 					;      B  = its length
+		extrn symp2		; every label pass 1 defined and
+					; pass 2 did not: a conditional
+					; skipped it the second time, so its
+					; bytes are missing from the program
+					; while everything that referred to
+					; it still points where pass 1 put
+					; it. Called ONCE, at the end of
+					; pass 2
+					; in:  nothing
+					; out: nothing, or errp2lab, which
+					;      does not return
 		extrn symdump		; print the symbol table (/S), in
 					; Tatara's own format: the value,
 					; the segment and the flags
@@ -133,7 +144,16 @@ SYMASK		equ	SYBUCKS-1
 SY_VAL		equ	0		; the value (2)
 SY_TYPE		equ	2		; its segment's index (1)
 SY_FLAGS	equ	3		; SYF_* below (1)
-SYSIZE		equ	4
+SY_FILE		equ	4		; A LABEL ONLY: which file its own
+SY_LINE		equ	5		;   line was in, and which line
+					;   (1+2). Read once, at the end of
+					;   pass 2, so that symp2 can say
+					;   WHERE a label the second reading
+					;   never defined was written. Three
+					;   bytes per symbol IN THE MAPPER,
+					;   where every record already is -
+					;   page 3 pays nothing for them
+SYSIZE		equ	7
 
 SYF_PUB		equ	1		; PUBLIC or ENTRY named it
 SYF_EXT		equ	2		; EXTRN or EXT named it: another
@@ -148,6 +168,19 @@ SYF_DEF		equ	8		; it has a value. PUBLIC can name a
 					;   symbol before anything defines it,
 					;   and that record must not look like
 					;   a definition
+SYF_LBL		equ	16		; A LABEL made it: it took the
+					;   location counter, rather than a
+					;   value EQU, SET or DEFL handed it.
+					;   deflab is the only place that sets
+					;   it. It is what SY_FILE and SY_LINE
+					;   belong to, and the only kind of
+					;   symbol symp2 checks - a guarded
+					;   EQU that pass 2 skips keeps its
+					;   pass-1 value and is CORRECT
+SYF_P2		equ	32		; defined on THIS reading of the
+					;   source. Set only while pass 2 runs,
+					;   which is why nothing has to walk
+					;   the table to clear it first
 
 MAXEXT		equ	0feh		; the highest external index, for
 					;   the same reason MAXSEGS stops

@@ -919,7 +919,12 @@ deflab:		ld	a,(flds+FL_LABL)
 		ld	de,(flds+FL_LAB)
 		ld	hl,(locctr)
 		ld	a,(curseg)	; relative to the current segment
-		ld	c,0		; a label is FIXED, so symdef does
+		ld	c,SYF_LBL	; a label is FIXED - SYF_VAR is what
+					;   makes a symbol variable and this
+					;   is not it - and it is a LABEL,
+					;   which is what symp2 checks and
+					;   what SY_FILE and SY_LINE are kept
+					;   for. So symdef does
 		jp	symdef		; the multiply-defined check AND the
 					; pass-2 agreement check that used to
 					; be written out here
@@ -1151,7 +1156,11 @@ main.done:	call	cndeof		; an IF left open at the end of the
 		call	objhead		; assembled at all
 		jp	main.pass
 
-main.fin:	call	objfin
+main.fin:	call	symp2		; a label pass 1 defined and pass 2
+					;   did not. BEFORE objfin: an object
+					;   file short of a routine should not
+					;   be finished and closed
+		call	objfin
 		call	lstend		; the listing's last page: Macros:
 		call	outclose	;   and Symbols:, then the file
 		ld	a,(optsym)	; /S: the symbol table, before the

@@ -48,6 +48,11 @@
 		extrn errexit		; EXITM outside a macro or repeat block
 		extrn errphase		; a label whose val on pass 2 disagrees
 					; with pass 1's. M80 calls it a P error
+		extrn errp2lab		; a label pass 1 defined and pass 2
+					; did not: a conditional skipped it
+					; the second time
+					; in:  A = its file number,
+					;      HL = its line
 
 ; --- conditionals
 
