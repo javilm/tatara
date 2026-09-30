@@ -1,6 +1,6 @@
 # The linker's tests
 
-14 sources and 51 checks, run by one script.
+15 sources and 52 checks, run by one script.
 
 ```
 tests

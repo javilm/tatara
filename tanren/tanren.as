@@ -64,6 +64,11 @@ main:		call	dosver		; CY set = not MSX-DOS2
 		call	lsyinit
 		ld	hl,0
 		ld	(nrecs),hl
+		xor	a		; AND THE TRAILING-BYTES FLAG, which
+		ld	(trail),a	;   is ORed from here on and so has
+					;   to start somewhere. It never
+					;   needed this while it was stored
+					;   once per module
 		call	lcmfrst
 
 main.file:	call	lcmnext		; CY set = every file is read
@@ -93,8 +98,22 @@ main.loop:	call	lobnext		; CY set = no more records
 main.done:	call	lobend		; CY set = something follows it
 		ld	a,0
 		adc	a,a
-		ld	(trail),a
-		call	lobclose
+		jr	z,main.shut	; THIS MODULE'S OWN ANSWER, and it
+					;   is read BEFORE the or below:
+					;   afterwards A is the whole link's
+					;   and the next module would be
+					;   blamed for this one's bytes
+		ld	hl,trail	; OR, NOT STORE: the summary speaks
+		or	(hl)		;   for every module read, and it
+		ld	(hl),a		;   used to speak for the last one
+		ld	a,(loptquiet)	; AND WHICH MODULE. Not an error -
+		or	a		;   spec 11 says a reader ignores
+		jr	nz,main.shut	;   what follows the END record -
+		ld	de,objname	;   so /Q silences it, and it is
+		call	putszu		;   said here rather than remembered
+		ld	de,msg_ltail	;   because objname is true now and
+		call	putsz		;   will not be later. Issue #27
+main.shut:	call	lobclose
 		jr	main.file
 
 main.all:	call	lsglay		; every segment gets an address,
@@ -808,6 +827,8 @@ msg_wentr:	defb	", entry ",0
 msg_wdot:	defb	".",CHR_CR,CHR_LF,0
 msg_wnone:	defb	"Nothing to write: no module has any"
 		defb	" content.",CHR_CR,CHR_LF,0
+msg_ltail:	defb	": bytes follow the END record.",CHR_CR
+		defb	CHR_LF,0
 msg_eof:	defb	"ends at EOF.",CHR_CR,CHR_LF,0
 msg_more:	defb	"AND BYTES AFTER THEM.",CHR_CR,CHR_LF,0
 msg_lcrlf:	defb	CHR_CR,CHR_LF,0

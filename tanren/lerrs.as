@@ -2,10 +2,17 @@
 ;
 ; Every one of them prints a line and terminates. The assembler's
 ; errs.as also prints where in the source the error was, because it
-; has a line to point at; the linker's errors are about a FILE, and
-; the file's name is in the message the driver already printed, so
-; there is nothing to add. That is the whole difference, and it is
-; why this module is forty lines and errs.as is six hundred.
+; has a line to point at.
+;
+; THIS MODULE USED TO SAY that the linker's errors need no such thing,
+; because "the file's name is in the message the driver already
+; printed". There is no such message: TANREN prints its banner and
+; then nothing until the map. Five errors carried that premise for as
+; long as it took someone to link two files and read the second one's
+; error. Issue #26. The five that are raised while a file is open now
+; print NAME: in front, the way the assembler prints FILE(line):, and
+; the four raised after every file is closed do not - objname is only
+; true while one is open.
 
 LERRLIB		equ	1	; skips the externals in lerrs.inc
 
@@ -42,6 +49,10 @@ LERRLIB		equ	1	; skips the externals in lerrs.inc
 		include	arglist.inc	; argfn: errlrsp names the
 					;   response file it tried, the
 					;   way errlopn names the object
+		include	lobj.inc	; lobbuf, lobsln: errlsflg names
+					;   the segment, and the SEGDEF's
+					;   name is still in the record
+					;   buffer where lsgkey read it
 		include	ascii.inc	; CHR_CR, CHR_LF
 
 		cseg
@@ -50,7 +61,7 @@ errlopn:	call	errlpfx		; THE NAME IT ACTUALLY TRIED, which
 		ld	de,msg_lopn
 		call	putsz		;   lcmext may have changed. Zero-
 		ld	de,objname	;   terminated, not "$": a filename
-		call	putsz		;   is interleaved with it and BDOS
+		call	putszu		;   is interleaved with it and BDOS
 		ld	de,msg_lcrl	;   09h cannot help with that
 		call	putsz
 		jp	dosexit
@@ -78,12 +89,45 @@ errlover:	call	errlpfx
 		ld	de,msg_lovr2
 		call	putsz
 		jp	dosexit
+
+; errlfnm - "NAME: ", the object file being read.
+;
+;   THE NAME GOES IN FRONT, which is why this costs so little: the
+;   messages keep their text and their $ terminator. It is also the
+;   format the assembler uses - FILE(line): ERROR: - so one habit
+;   reads both tools.
+;
+; Input:	objname
+; Output:	the name and a colon
+; Modifies:	AF, BC, DE, HL
+
+errlfnm:	ld	de,objname	; UPPER CASE, like every other name
+		call	putszu		;   TANREN prints and like the source
+					;   file in the assembler's errors
+		ld	de,msg_lcol
+		jp	putsz
+
+; errlfil - that prefix, then the ordinary error line. ONLY FOR THE
+;   ERRORS RAISED WHILE A FILE IS OPEN: objname holds the last name
+;   tried, and after the reading is done that is not the file at
+;   fault.
+;
+; Input:	DE -> the $-terminated message
+; Output:	does not return
+
+errlfil:	push	de
+		call	errlfnm
+		pop	de
+		jp	errldie		; jp: errlsflg and errlnm went in
+					;   between, and errldie is 128 bytes
+					;   away - one past a jr's reach
+
 errlmag:	ld	de,msg_lmag
-		jr	errldie
+		jr	errlfil
 errlver:	ld	de,msg_lver
-		jr	errldie
+		jr	errlfil
 errltrn:	ld	de,msg_ltrn
-		jr	errldie
+		jr	errlfil
 errlunk:	ld	de,msg_lunk
 		jr	errldie
 errlheap:	ld	de,msg_lheap
@@ -92,7 +136,8 @@ errlenv:	ld	de,msg_lenv	; the TANREN variable is longer than
 		jr	errldie		;   LMAXENV, so _GENV has handed back a
 					;   truncated value with no terminator
 errlmseg:	ld	de,msg_lmseg
-		jr	errldie
+		jr	errlfil		; one module's segments, and a
+					;   module is a file
 errlwrt:	ld	de,msg_lwrt
 		jr	errldie
 errlnest:	ld	de,msg_lnest
@@ -113,7 +158,44 @@ errlyunr:	ld	de,msg_lyunr
 		jr	errldie
 errlymix:	ld	de,msg_lymix
 		jr	errldie
-errlsflg:	ld	de,msg_lsflg
+; errlsflg - two files disagree about one segment, and the user needs
+;   to know about WHICH ONE. The name is still in lobbuf: lsgkey read
+;   it from there a few instructions ago. The record htfind found is
+;   no use for it - lspay points at the PAYLOAD, not at the record, so
+;   lsgnam cannot be aimed at it, and lseg.as is left alone.
+;
+;   The OTHER module is not named. Nothing remembers it: see 096.
+
+errlsflg:	call	errlfnm
+		call	errlpfx
+		ld	de,msg_lsflg
+		call	putsz
+		call	errlnm
+		ld	de,msg_lsf2
+		call	putsz
+		jp	dosexit
+
+; errlnm - lobsln bytes of lobbuf: a name as the FILE wrote it, which
+;   is counted and not terminated.
+;
+; Input:	lobbuf, lobsln
+; Output:	the name is printed
+; Modifies:	AF, BC, DE, HL
+
+errlnm:		ld	a,(lobsln)
+		or	a
+		ret	z		; no name: print nothing rather
+		ld	b,a		;   than 256 characters
+		ld	hl,lobbuf
+errln.lp:	push	bc
+		push	hl
+		ld	e,(hl)
+		call	putch
+		pop	hl
+		pop	bc
+		inc	hl
+		djnz	errln.lp
+		ret
 
 ; errldie - print the $-terminated message in DE and terminate.
 ;
@@ -139,6 +221,7 @@ errlpfx:	ld	de,msg_lerr
 		dseg
 
 msg_lerr:	defb	"ERROR: ",0	; printed by errldie and errlpfx
+msg_lcol:	defb	": ",0		; and by errlfnm, after the name
 msg_lopn:	defb	"cannot open ",0
 msg_lcrl:	defb	CHR_CR,CHR_LF,0
 msg_lmag:	defb	"not a Tatara object file.",CHR_CR
@@ -168,8 +251,13 @@ msg_lmext:	defb	"too many external symbols in one"
 		defb	" module.",CHR_CR,CHR_LF,"$"
 msg_lmseg:	defb	"too many segments or groups in one"
 		defb	" module.",CHR_CR,CHR_LF,"$"
-msg_lsflg:	defb	"this segment was declared differently"
-		defb	" in another module.",CHR_CR,CHR_LF,"$"
+msg_lsflg:	defb	"segment ",0	; errlnm puts the name between
+msg_lsf2:	defb	" is declared differently.",CHR_CR
+		defb	CHR_LF,0	;   these two. ZERO-TERMINATED,
+				;   both of them: errlsflg prints them
+				;   with putsz, because a name is
+				;   interleaved and BDOS 09h cannot
+				;   help with that
 msg_lovlp:	defb	"/D: would put the data on top of"
 		defb	" the code.",CHR_CR,CHR_LF,"$"
 msg_lbig:	defb	"the linked image would run past"
