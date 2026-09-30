@@ -72,9 +72,18 @@ ORGCOM		equ	00100h	; where an MSX-DOS .COM starts. A switch
 				; moves it - [R11] wants a
 				; 64 KB .ROM, which is a different START
 				; and not a different mechanism
-SGPAY		equ	6	; a segment record's payload: the flags
+SGPAY		equ	7	; a segment record's payload: the flags
 				; byte as the FILE wrote it, the size, the
-				; base, and whether it has been placed.
+				; base, whether it has been placed, and
+				; ITS ORDINAL - which segment this was,
+				; counting from 0 in the order the link
+				; first meets them, which is the order
+				; they are placed in. The assembler writes
+				; SEGDEFs in index order and makes the
+				; classic segments before it reads a line,
+				; so arrival order puts the default CSEG
+				; and DSEG first without the linker
+				; needing a rule for them. 094
 				; THE PLACED FLAG IS NOT A SPARE BIT of
 				; the flags byte: errlsflg compares that
 				; byte across modules, and our own bit in

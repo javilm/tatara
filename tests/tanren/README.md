@@ -1,6 +1,6 @@
 # The linker's tests
 
-13 sources and 50 checks, run by one script.
+14 sources and 51 checks, run by one script.
 
 ```
 tests
@@ -20,8 +20,9 @@ and the largest-of-them rule. Publics and externals, duplicate
 definitions and undefined ones. Fixups, entry points and absolute
 content. The image: `/P:` and `/D:` origins, overlapping spans, `/B`
 for a BLOAD header, and output that is not a `.COM`. Response files -
-composing with the command line, nesting refused, and objects found
-beside the list. The object search and its environment variable.
+composing with the command line, nesting refused, a second one on the
+same command line refused, and objects found beside the list. The
+object search and its environment variable.
 
 `OBJS/` holds two objects copied into a subdirectory by the run, so
 that a file list can be found somewhere other than the current

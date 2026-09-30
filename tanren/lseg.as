@@ -187,6 +187,12 @@ lsgseg:		ld	a,(lsmn)
 		ld	(hl),0
 		inc	hl
 		ld	(hl),0		; and not placed
+		inc	hl
+		ld	a,(lsnum)	; ITS ORDINAL: segments are placed in
+		ld	(hl),a		;   the order they first appear, and
+					;   this is where that order is
+					;   remembered - the table forgets it
+					;   the moment the record is added
 		ld	hl,lsnum
 		inc	(hl)
 		jr	lsgs.add
@@ -343,12 +349,35 @@ lsgd.s:		ld	de,msg_segs
 		call	putsz
 		ld	a,1		; a segment's key has its group byte
 		ld	(lsskp),a	;   in front of the name
+		xor	a		; IN PLACEMENT ORDER, by the same two
+		ld	(lslkind),a	;   loops lsglay uses: a map printed
+lsgd.knd:	xor	a		;   in any other order is a map of a
+		ld	(lsgord),a	;   layout that did not happen.
+					;   lslkind IS BORROWED: lsglay has
+					;   finished with it by the time
+					;   main.all calls this, and it is
+					;   left at 2 either way
+lsgd.ord:	ld	a,(lsgord)
+		ld	hl,lsnum
+		cp	(hl)
+		jp	nc,lsgd.knx	; jp: the same columns that pushed
+					;   lsgd.ord past a jr's reach put the
+					;   end of the loop past it too
 		call	lsgfrst
 lsgd.sl:	ld	ix,lsegtab
 		ld	hl,lsit
 		call	htnext
-		ret	c
+		jr	c,lsgd.nxo
 		call	lsgpay		; flags, group, total - all three
+		ld	a,(lsdord)
+		ld	hl,lsgord
+		cp	(hl)
+		jr	nz,lsgd.sl
+		ld	a,(lsdfl)
+		and	1
+		ld	hl,lslkind
+		cp	(hl)
+		jr	nz,lsgd.nxo
 		ld	de,msg_ind	;   into RAM before a word is
 		call	putsz		;   printed
 		ld	de,msg_flg
@@ -385,8 +414,16 @@ lsgd.sp:	ld	de,msg_sp
 		call	lsgnp
 		call	lsgnam
 		call	lsgcrlf
-		jp	lsgd.sl		; jp: the extra columns pushed this
+lsgd.nxo:	ld	hl,lsgord
+		inc	(hl)
+		jp	lsgd.ord	; jp: the extra columns pushed this
 					;   loop past a jr's reach
+lsgd.knx:	ld	hl,lslkind	; code done, now the data - and then
+		inc	(hl)		;   there is no third kind
+		ld	a,(hl)
+		cp	2
+		jp	c,lsgd.knd
+		ret
 
 ; lsgpay - the record lsit is on: its group byte and its payload, into
 ;   ordinary RAM.
@@ -427,6 +464,9 @@ lsgpay:		derefp	lsit+1
 		inc	hl
 		ld	a,(hl)
 		ld	(lsdset),a
+		inc	hl
+		ld	a,(hl)
+		ld	(lsdord),a
 		ret
 
 ; lsglay - every segment gets an address.
@@ -454,21 +494,33 @@ lsgl.org:	ld	(lsgnext),hl
 		ld	(lsgcst),hl	; where the code began, for lsgovl
 		xor	a
 		ld	(lslkind),a	; code first
-lsgl.kind:	call	lsgfrst
+lsgl.kind:	xor	a		; ORDINAL BY ORDINAL, and not
+		ld	(lsgord),a	;   whatever htnext hands over: the
+lsgl.ord:	ld	a,(lsgord)	;   table's order is the hash of the
+		ld	hl,lsnum	;   NAMES, so renaming a code segment
+		cp	(hl)		;   could change which one landed at
+		jr	nc,lsgl.kdone	;   0100h - and a .COM is entered
+		call	lsgfrst		;   there whatever any file says.
+					;   Issue #24
 lsgl.lp:	ld	ix,lsegtab
 		ld	hl,lsit
 		call	htnext
-		jr	c,lsgl.kdone
-		call	lsgpay		; flags, size, base, placed
+		jr	c,lsgl.nxo	; no record carries this ordinal
+		call	lsgpay		; flags, size, base, placed, ordinal
+		ld	a,(lsdord)
+		ld	hl,lsgord
+		cp	(hl)
+		jr	nz,lsgl.lp	; some other segment's
 		ld	a,(lsdset)
 		or	a
-		jr	nz,lsgl.lp	; another record of its name placed
+		jr	nz,lsgl.nxo	; another record of its name placed
 					;   it already
 		ld	a,(lsdfl)	; is it this pass's kind?
 		and	1
 		ld	hl,lslkind
 		cp	(hl)
-		jr	nz,lsgl.lp
+		jr	nz,lsgl.nxo	; the other pass will take it, and
+					;   that pass counts from 0 again
 		call	lsgkeep		; its name, into lslnam
 		call	lsgmax		; -> HL = the largest of that name
 		push	hl
@@ -482,7 +534,9 @@ lsgl.lp:	ld	ix,lsegtab
 					;   relative jump cannot reach what
 					;   the assembler cannot measure
 		ld	(lsgnext),hl
-		jr	lsgl.lp
+lsgl.nxo:	ld	hl,lsgord	; that ordinal is answered, whether
+		inc	(hl)		;   it placed anything or not
+		jr	lsgl.ord
 lsgl.kdone:	ld	hl,lslkind
 		inc	(hl)
 		ld	a,(hl)
@@ -856,6 +910,8 @@ lsdfl:		defs	1
 lsdsz:		defs	2
 lsdbs:		defs	2
 lsdset:		defs	1
+lsdord:		defs	1	;   and its ordinal, for the two walks
+				;   that go in placement order
 lsit2:		defs	5	; THE SECOND WALK: lsgmax and lsgset run
 				;   while the outer walk is still standing
 				;   on a record
@@ -866,6 +922,13 @@ lslmax:		defs	2	; the largest size found under it
 lslbase:	defs	2	; the base being handed out
 lslkind:	defs	1	; 0 while the code segments are placed,
 				;   1 for the data ones
+lsgord:		defs	1	; the ordinal lsglay and lsgdump are
+				;   looking for. THE LOOP IS OVER
+				;   ORDINALS and the table is searched for
+				;   each, which costs a walk per segment
+				;   and needs no sort and no second table
+				;   - the layout has been O(n squared) by
+				;   choice since 061 D4
 lsgnext:	defs	2	; the next free address
 lsgend:		defs	2	; where the LAST KIND finished - which
 				; with /D: putting the data below the

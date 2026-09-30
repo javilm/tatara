@@ -54,6 +54,10 @@ echo === A AND E (expect astart defined twice, naming module e) >> results.txt
 tatara /q e.as e.tro
 tanren /q a.tro e.tro >> results.txt
 
+echo === TWO CODE SEGMENTS (expect C at 0100 and EXTRA after it) >> results.txt
+tatara /q twocode.as twocode.tro >> results.txt
+tanren /q /m /o:twocode.com twocode.tro >> results.txt
+
 echo === THE MAP with addresses (expect C at 0100, D after it) >> results.txt
 tanren /q /m a.tro b.tro c.tro >> results.txt
 echo === THREE GROUPS OF ONE SEGMENT (expect size 0014, one base) >> results.txt
