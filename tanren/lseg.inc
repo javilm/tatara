@@ -93,6 +93,11 @@ SGP_FLG		equ	0	; and where each one sits
 SGP_SIZ		equ	1
 SGP_BAS		equ	3
 SGP_SET		equ	5
+SGP_ORD		equ	6	; 094's byte. NOTHING USES THIS ONE: the
+				; three routines that touch the payload walk
+				; it with inc hl. It is here because the four
+				; above map the record, and a map with a hole
+				; in it reads as an oversight
 LMAXSEG		equ	16	; segments one module may contribute to.
 				; The map holds a far pointer each, so this
 				; is 64 bytes of ordinary RAM

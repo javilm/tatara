@@ -367,7 +367,9 @@ lsgd.ord:	ld	a,(lsgord)
 lsgd.sl:	ld	ix,lsegtab
 		ld	hl,lsit
 		call	htnext
-		jr	c,lsgd.nxo
+		jp	c,lsgd.nxo	; jp: 122 bytes of printed record lie
+					;   between here and lsgd.nxo, and all
+					;   three exits clear the lot
 		call	lsgpay		; flags, group, total - all three
 		ld	a,(lsdord)
 		ld	hl,lsgord
@@ -377,8 +379,22 @@ lsgd.sl:	ld	ix,lsegtab
 		and	1
 		ld	hl,lslkind
 		cp	(hl)
-		jr	nz,lsgd.nxo
-		ld	de,msg_ind	;   into RAM before a word is
+		jp	nz,lsgd.nxo
+		ld	a,(lsdfl)	; A TRANSIENT SEGMENT'S GROUPLESS
+		and	2		;   RECORD HAS NOTHING TO SAY. It is
+		jr	z,lsgd.pr	;   the one made when DSEG TRANSIENT is
+		ld	a,(lsdgr)	;   first met, before a GROUP has said
+		inc	a		;   what it may overlay - and the
+		jr	nz,lsgd.pr	;   assembler's segwr lets nothing in
+		ld	hl,(lsdsz)	;   until one has, so it is always
+		ld	a,h		;   empty. Printed, it puts a row with
+		or	l		;   no size and no end among the rows
+		jp	z,lsgd.nxo	;   that have both.
+					;   THE SIZE IS TESTED ANYWAY, though
+					;   segwr makes it dead: a map may drop
+					;   a record only when it says nothing.
+					;   Issue #25
+lsgd.pr:	ld	de,msg_ind	;   into RAM before a word is
 		call	putsz		;   printed
 		ld	de,msg_flg
 		call	putsz

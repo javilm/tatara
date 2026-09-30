@@ -16,7 +16,9 @@ marker before each block.
 
 Reading object files, and refusing files that are not ones. Segments
 across modules: concatenation, groups, transient segments overlaid,
-and the largest-of-them rule. Publics and externals, duplicate
+the largest-of-them rule, and the ORDER they are placed in - code
+first, then data, and within each the order the modules first name
+them, so the default CSEG is the code that runs. Publics and externals, duplicate
 definitions and undefined ones. Fixups, entry points and absolute
 content. The image: `/P:` and `/D:` origins, overlapping spans, `/B`
 for a BLOAD header, and output that is not a `.COM`. Response files -
