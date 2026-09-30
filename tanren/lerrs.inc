@@ -44,6 +44,12 @@
 		extrn errlrsp		; the response file will not
 					; open, or "@" named nothing
 		extrn errlnest		; a response file holds an "@"
+		extrn errltwo		; a second "@FILE" on one command
+					; line. One list, and it may not
+					; name another: the objects named
+					; in each are looked for in its own
+					; directory, and only one of those
+					; is remembered
 		extrn errlargs		; more words, or a longer word,
 					; than the list holds
 		extrn errlenv		; the TANREN variable is too long

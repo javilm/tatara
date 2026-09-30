@@ -18,6 +18,7 @@ LERRLIB		equ	1	; skips the externals in lerrs.inc
 		public	errlmseg
 		public	errlrsp
 		public	errlnest
+		public	errltwo
 		public	errlargs
 		public	errlenv
 		public	errlout
@@ -96,6 +97,8 @@ errlwrt:	ld	de,msg_lwrt
 		jr	errldie
 errlnest:	ld	de,msg_lnest
 		jr	errldie
+errltwo:	ld	de,msg_ltwo
+		jr	errldie
 errlargs:	ld	de,msg_largs
 		jr	errldie
 errlmext:	ld	de,msg_lmext
@@ -152,6 +155,8 @@ msg_lenv:	defb	"the TANREN variable is too long.",CHR_CR
 msg_lrsp:	defb	"cannot open the file list ",0
 msg_lnest:	defb	"a file list may not name another"
 		defb	" one.",CHR_CR,CHR_LF,"$"
+msg_ltwo:	defb	"only one file list may be given.",CHR_CR
+		defb	CHR_LF,"$"
 msg_largs:	defb	"too many words on the command line"
 		defb	" or in the file list.",CHR_CR,CHR_LF,"$"
 msg_lout:	defb	"cannot create ",0

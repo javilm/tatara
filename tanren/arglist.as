@@ -33,7 +33,7 @@ ARGLIB		equ	1	; skips the externals in arglist.inc
 
 		include	arglist.inc
 		include	lerrs.inc	; errlheap, errlargs, errlrsp,
-					;   errlnest
+					;   errlnest, errltwo
 		include	alloc.inc	; halloc, deref
 		include	farptr.inc	; derefp
 		include	strutil.inc	; strext
@@ -173,6 +173,16 @@ argwrd:		ld	a,(argw)
 argwr.f:	ld	a,(argnest)
 		or	a
 		jp	nz,errlnest	; @ INSIDE a response file: refused
+		ld	a,(argrone)	; AND ONLY ONE ON THE COMMAND LINE.
+		or	a		;   Two were accepted and read, and
+		jp	nz,errltwo	;   then the objects named in the
+		ld	a,0ffh		;   FIRST were looked for in the
+		ld	(argrone),a	;   SECOND's directory, because
+					;   argrdir, argrf and argrt hold one
+					;   file's answer - issue #23. 063
+					;   settled "one level, stated" for
+					;   nesting; this is its sibling, and
+					;   the same answer
 		ld	hl,argw+1	; the name, without the @
 		ld	de,argfn
 argwr.cp:	ld	a,(hl)
@@ -241,9 +251,15 @@ argfrst:	ld	hl,0
 ; argfrom - did the word at argpos come from the response file?
 ;
 ;   THE RANGE IS ONE CONTIGUOUS SPAN, which is what makes this work
-;   at all: a response file may not name another one, so
-;   there is exactly one, its words are appended where the "@"
+;   at all: ONE file list may be given and it may not name another,
+;   so there is exactly one, its words are appended where the "@"
 ;   appeared, and nothing is ever inserted in front of them.
+;
+;   THE SECOND HALF OF THAT WAS MISSING UNTIL 093, and this comment
+;   named only the nesting rule - which was true, and not enough. Two
+;   lists on one command line overwrote argrdir, argrf and argrt, and
+;   the first file's objects were then looked for in the second
+;   file's directory. Issue #23.
 ;
 ;   With no response file read the range is 0 to 0, and every word is
 ;   "at or past its end", so the answer is always no.
@@ -421,6 +437,13 @@ argwn:		defs	1	;   and how much of it there is
 argfn:		defs	ARGMAX	; the response file being read
 argnest:	defs	1	; 0FFh while one is open,
 arghand:	defs	1	;   and its handle
+argrone:	defs	1	; 0FFh once one has been READ, which is
+				;   not the same thing: argnest is clear
+				;   again afterwards. A BYTE AND NOT A
+				;   TEST OF argrt, because a file holding
+				;   only comments leaves argrf and argrt
+				;   equal - and equal to zero, if the @
+				;   came first
 argbuf:		defs	ARGBUFS	; what has been read of it,
 argbn:		defs	2	;   how much came back,
 argbi:		defs	2	;   and how far through it we are

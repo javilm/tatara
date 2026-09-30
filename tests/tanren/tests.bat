@@ -108,6 +108,8 @@ echo === WORDS BEFORE AND AFTER IT (expect 4 modules) >> results.txt
 tanren /q /m /o:mix.com a.tro @ok.lnk >> results.txt
 echo === A LIST NAMING ANOTHER (expect: may not name another) >> results.txt
 tanren /q @nest.lnk >> results.txt
+echo === TWO LISTS ON ONE LINE (expect: only one file list) >> results.txt
+tanren /q /o:two.com @ok.lnk @ok.lnk >> results.txt
 echo === A LIST THAT IS NOT THERE (expect: cannot open) >> results.txt
 tanren /q @nosuch >> results.txt
 
