@@ -207,6 +207,9 @@ symdef:		ld	(syval),hl	; the same scratch symset uses
 		ld	a,c
 		ld	(sydflg),a
 
+		call	syixnm		; IXH, IXL, IYH and IYL are
+					;   registers now, whatever M80 let
+					;   them be
 		call	symlook		; CY set = nothing by that name
 		jr	c,symdef.put
 		ld	(sdold),hl	; keep what it was worth
@@ -305,6 +308,8 @@ symdef.mrk:	ld	a,(passno)
 sympub:		ld	(synam),de
 		ld	a,b
 		ld	(sylen),a
+		call	syixnm		; a name that cannot be defined may
+					;   not be declared either
 		call	symlook		; CY set = make one
 		jr	c,sympub.new
 		ld	a,(symfl)
@@ -344,8 +349,67 @@ sympub.new:	ld	de,(synam)	; a record with no value: SYF_DEF
 symext:		ld	(synam),de
 		ld	a,b
 		ld	(sylen),a
+		call	syixnm		; and this one matters most: an
+					;   external named IXH would be
+					;   written as a register instead
 		call	symlook
 		jr	c,symext.new
+
+; syixnm - may a symbol be called this?
+;
+;   IXH, IXL, IYH and IYL are registers from 104 onwards and were legal
+;   M80 symbol names before it. A source that uses one as a label would
+;   otherwise change its bytes in silence - "ld a,ixh" was an immediate
+;   load and becomes DD 7C - so the name stops being available, like B
+;   and HL have always been, and the change announces itself on the line
+;   that causes it.
+;
+;   A CHARACTER TEST AND NOT A TABLE LOOKUP. Asking regtab which rows
+;   are OK_R8X would never restate the rule, and would make the symbol
+;   table depend on the instruction table to learn that four names are
+;   registers. They share a RULE, not an interface - 089's argument for
+;   keeping three quote scanners - and this rule is a closed set the Z80
+;   defines, three characters long, that cannot drift.
+;
+;   Registers fold case wherever they appear, so this does too: ixh is
+;   refused under /C exactly as IXH is.
+;
+;   This is the whole of the refusal. PUBLIC, EXTRN, labels, EQU, SET
+;   and DEFL are all of the ways a name can be introduced, and the three
+;   routines above are all of the doors.
+;
+; Input:	DE -> the name
+;		B  = its length
+; Output:	returns, or errixnm does not return
+; Modifies:	AF - DE and B are kept, because every caller still wants
+;		them
+
+syixnm:		ld	a,b		; three characters, and no other
+		cp	3		;   length can be one of the four
+		ret	nz
+		push	de
+		ld	a,(de)
+		call	strupr
+		cp	"I"
+		jr	nz,syix.no
+		inc	de
+		ld	a,(de)
+		call	strupr
+		cp	"X"
+		jr	z,syix.hl
+		cp	"Y"
+		jr	nz,syix.no
+syix.hl:	inc	de
+		ld	a,(de)
+		call	strupr
+		cp	"H"
+		jr	z,syix.bad
+		cp	"L"
+		jr	nz,syix.no
+syix.bad:	pop	de
+		jp	errixnm
+syix.no:	pop	de
+		ret
 		ld	a,(symfl)
 		and	SYF_EXT
 		ret	nz		; already external: the source said

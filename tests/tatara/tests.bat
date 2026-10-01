@@ -481,6 +481,9 @@ tatara /q /p /s /l jrt.as >> results.txt
 echo === CBT.AS /S (expect T0 0, T1 2, T2 4, T3 6, T4 10, T5 12, T6 14, T7 18) >> results.txt
 tatara /q /p /s /l cbt.as >> results.txt
 
+echo === SLL.AS /S (expect T0 0 to T7 14 by twos, T8 16, T9 20, TA 24) >> results.txt
+tatara /q /p /s /l sll.as >> results.txt
+
 echo === SETBIT.AS /S (expect T0 0, T1 4, T2 6, FOO 7) >> results.txt
 tatara /q /p /s /l setbit.as >> results.txt
 
@@ -489,6 +492,12 @@ tatara /q /p /s /l exchg.as >> results.txt
 
 echo === INOUT.AS /S (expect T0 0, T1 2, T2 4, T3 6, T4 8, T5 10) >> results.txt
 tatara /q /p /s /l inout.as >> results.txt
+
+echo === INOUTU.AS /S (expect T0 0, T1 2, T2 4, T3 6, T4 8) >> results.txt
+tatara /q /p /s /l inoutu.as >> results.txt
+
+echo === IXHALF.AS /S (expect T0 0, T3 6, T4 9, T6 13, TA 21, TB 23) >> results.txt
+tatara /q /p /s /l ixhalf.as >> results.txt
 
 echo === R800T.AS /S (expect T0 0, T1 2, T2 4, T3 6, T4 8) >> results.txt
 tatara /q /p /s /l r800t.as >> results.txt
@@ -516,6 +525,27 @@ tatara /q /p exbad2.as >> results.txt
 
 echo === EXBAD3.AS (expect not a form, line 2) >> results.txt
 tatara /q /p exbad3.as >> results.txt
+
+echo === LDHIXL.AS (expect not a form, line 2) >> results.txt
+tatara /q ldhixl.as >> results.txt
+
+echo === LDIXIY.AS (expect not a form, line 2) >> results.txt
+tatara /q ldixiy.as >> results.txt
+
+echo === ROTIXH.AS (expect not a form, line 2) >> results.txt
+tatara /q rotixh.as >> results.txt
+
+echo === IXHNAM.AS (expect registers not names, line 2) >> results.txt
+tatara /q ixhnam.as >> results.txt
+
+echo === IXHEXT.AS (expect registers not names, line 2) >> results.txt
+tatara /q ixhext.as >> results.txt
+
+echo === INUBAD.AS (expect not a form, line 2) >> results.txt
+tatara /q inubad.as >> results.txt
+
+echo === OUTUBAD.AS (expect not a form, line 2) >> results.txt
+tatara /q outubad.as >> results.txt
 
 echo === INBAD.AS (expect not a form, line 2) >> results.txt
 tatara /q /p inbad.as >> results.txt

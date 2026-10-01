@@ -285,7 +285,8 @@ opwm.end:	ld	a,c
 ; Output:	CY set   = no such word here, and the cursor has not
 ;			   moved
 ;		CY clear = (opkind) and (opcod) are set, (opfix) too for
-;			   IX and IY, and the cursor is past the word
+;			   IX, IY and the four index halves, and the
+;			   cursor is past the word
 ; Modifies:	AF, BC, DE, HL
 
 opword:		ld	(opwtab),hl
@@ -328,10 +329,22 @@ opw.ch:		inc	hl
 		ld	c,(hl)		; the code - or the prefix
 		pop	hl
 		cp	OK_IX		; A is still the kind
-		jr	nz,opw.got
+		jr	nz,opw.half
 		ld	a,c		; IX and IY: the code column held
 		ld	(opfix),a	;   0DDh or 0FDh, and the pair code
 		ld	c,2		;   is HL's
+		jr	opw.got
+
+opw.half:	ld	b,0ddh		; an index half: the column held the
+		cp	OK_R8IX		;   register code, 4 or 5, and the
+		jr	z,opw.hf1	;   KIND says which prefix goes in
+		ld	b,0fdh		;   front of it
+		cp	OK_R8IY
+		jr	nz,opw.got
+opw.hf1:	ld	a,b
+		ld	(opfix),a
+		ld	a,OK_R8X	; ONE kind outside this routine, so
+		ld	(opkind),a	;   a handler asks one question
 opw.got:	ld	a,c
 		ld	(opcod),a
 		ld	a,(opwn)
@@ -715,7 +728,14 @@ opccm:		call	opsave
 		scf			;   comma it was a symbol that
 		ret			;   happens to be named Z, C or M
 
-; opr8 - an 8-bit source: a register, (HL), or an indexed operand.
+; opr8 - an 8-bit source: a register, (HL), an indexed operand, or an
+;   index half.
+;
+;   AN INDEX HALF IS NOT SAFE EVERYWHERE THIS ROUTINE IS CALLED. It
+;   comes back as OK_R8X with opfix set, so a handler that emits through
+;   emitop is right without knowing it exists - and cls.rot, which
+;   cannot use emitop, has to refuse it by hand. 104 has the four
+;   handlers this routine serves and what each of them does with it.
 ;
 ;   (IX+d) IS (HL) with a prefix in front and a byte after. Both answer
 ;   code 6, which is the whole of the indexed forms - everything else
@@ -738,6 +758,8 @@ opr8:		call	opany
 		ret	z
 		cp	OK_IDX
 		ret	z
+		cp	OK_R8X		; an index half is an 8-bit source
+		ret	z		;   wherever emitop does the emitting
 		call	oprest		; opany's own save still points at
 		scf			;   the start of this operand
 		ret
@@ -909,6 +931,7 @@ optab:		defb	3,	"NOP",	C_NONE,		000h
 		defb	2,	"RR",	C_ROT,		018h
 		defb	3,	"SLA",	C_ROT,		020h
 		defb	3,	"SRA",	C_ROT,		028h
+		defb	3,	"SLL",	C_ROT,		030h
 		defb	3,	"SRL",	C_ROT,		038h
 
 		defb	2,	"JP",	C_JP,		0c3h
@@ -936,6 +959,13 @@ optab:		defb	3,	"NOP",	C_NONE,		000h
 ;
 ; IX and IY hold their PREFIX in the code column. opword turns that into
 ; opfix and gives them HL's pair code, 2.
+;
+; THE FOUR INDEX HALVES ARE THE OTHER WAY ROUND. Their code is 4 or 5 -
+; H's and L's, because the prefix is all that tells them apart from H
+; and L - so the column holds the CODE and the KIND holds the prefix.
+; opword normalises both to OK_R8X. A handler that wants them says so
+; once; every handler that does not, and there are eight, refuses them
+; by testing OK_R8 as it always did. 104 has the argument.
 
 regtab:		defb	1,	"B",	OK_R8,	0
 		defb	1,	"C",	OK_R8,	1
@@ -952,6 +982,10 @@ regtab:		defb	1,	"B",	OK_R8,	0
 		defb	3,	"AF'",	OK_AFP,	0
 		defb	2,	"IX",	OK_IX,	0ddh
 		defb	2,	"IY",	OK_IX,	0fdh
+		defb	3,	"IXH",	OK_R8IX,	4
+		defb	3,	"IXL",	OK_R8IX,	5
+		defb	3,	"IYH",	OK_R8IY,	4
+		defb	3,	"IYL",	OK_R8IY,	5
 		defb	1,	"I",	OK_I,	0
 		defb	1,	"R",	OK_R,	0
 		defb	0		; the end of the table

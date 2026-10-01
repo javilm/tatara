@@ -121,6 +121,20 @@ OK_MEM		equ	10	; (expression) - an address
 OK_MBC		equ	11	; (BC), which only LD reads
 OK_MDE		equ	12	; (DE), the same
 OK_IMM		equ	13	; a plain expression
+OK_R8X		equ	14	; AN INDEX HALF - IXH, IXL, IYH or IYL.
+				;   (opcod) is 4 or 5, which are H's code
+				;   and L's, and (opfix) says which index
+				;   register. This is what opword leaves,
+				;   and the only one of the three below a
+				;   handler ever sees
+OK_R8IX		equ	15	; the table's two: a half of IX, and a
+OK_R8IY		equ	16	;   half of IY. THE CODE COLUMN HOLDS THE
+				;   REGISTER CODE here - the other way round
+				;   from OK_IX, where the pair code is
+				;   always 2 so the column holds the prefix
+				;   instead. opword turns either of these
+				;   into OK_R8X plus the prefix the kind
+				;   names, and neither is seen outside it
 
 ; (SP) AND (C) have no kinds of their own, and must not get them: M80
 ; assembles "ld a,(c)" as 3A nn when C is a symbol, so a kind for (C)

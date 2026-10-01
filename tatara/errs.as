@@ -37,6 +37,7 @@ ERRSLIB		equ	1		; skips the externals in errs.inc
 		public	errgrp
 		public	errngrp
 		public	errlabc
+		public	errixnm
 		public	errstar
 		public	errnlab
 		public	errtrl		; not an error: the trail printer,
@@ -252,6 +253,13 @@ errnlab:	ld	de,msg_nlab
 ; errlabc - a label holding a character that a name may not hold. M80
 ; answers these with a U and stops. Does not return.
 errlabc:	ld	de,msg_labc
+		jp	errdie
+
+; errixnm - a symbol called IXH, IXL, IYH or IYL. They were legal M80
+; names and are registers from 104 onwards, and a source that used one
+; as a label would otherwise change its bytes without saying so. Does
+; not return.
+errixnm:	ld	de,msg_ixnm
 		jp	errdie
 
 ; errstar - a column-1 word beginning with * or $ that is not one of
@@ -672,6 +680,8 @@ msg_star:	defb	"only *EJECT and its dollar spelling are"
 					;   with BDOS 09h and would stop at
 					;   one, which is how 099 lost half
 					;   of its message
+msg_ixnm:	defb	"IXH, IXL, IYH and IYL are registers,"
+		defb	" not names.",CHR_CR,CHR_LF,"$"
 msg_labc:	defb	"a name may hold only letters, digits,"
 		defb	" ? @ . _ and the dollar sign.",CHR_CR
 		defb	CHR_LF,"$"	; NOT a "$" in the text: errdie

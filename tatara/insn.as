@@ -268,6 +268,8 @@ cls.ld:		call	opany		; the destination
 		ld	a,(lddst)
 		cp	OK_R8
 		jp	z,ld.r8
+		cp	OK_R8X
+		jp	z,ld.hlf
 		cp	OK_IDX
 		jp	z,ld.idx
 		cp	OK_RR
@@ -321,12 +323,86 @@ ld.x16:		rlca			; the same, sixteen times: a pair
 		add	a,c
 		ret
 
+; --- the index halves. The prefix governs the INSTRUCTION, not the
+;     operand, so it makes H and L into halves wherever they appear in
+;     the line - which is why the operand that is NOT the half may not
+;     be H, L or (HL), and why two halves must belong to the same
+;     register. 101 listed three conflicts; ld.hpln is two of them.
+;
+;     opfix is the asymmetry. When the half is the SOURCE it is already
+;     right, the source's opany having run last; when the half is the
+;     DESTINATION it holds whatever the source forced, so ld.hlf puts
+;     the destination's prefix there and emitop serves both ways round
+;     without being touched.
+
+ld.hlf:		ld	a,(opfix)	; the SOURCE's prefix - only
+		ld	(inscod),a	;   "ld ixh,ixl" has one - kept
+		ld	a,(lddfix)	;   across the store below
+		ld	(opfix),a	; THE INSTRUCTION'S prefix is the
+					;   destination's, and emitop emits
+					;   whatever opfix holds
+		ld	a,(opkind)
+		cp	OK_IMM
+		jr	z,ld.hlfn	; "ld ixh,44h" is DD 26 44
+		cp	OK_R8X
+		jr	z,ld.hlfx	; "ld ixl,ixh" - one register
+		cp	OK_R8
+		jp	nz,erroper	; and nothing else: no (hl), no
+		ld	a,(opcod)	;   (nn), no (ix+d), no I and no R
+		call	ld.hpln
+		jr	ld.hlfe
+
+ld.hlfx:	ld	a,(inscod)	; two halves, and ONE prefix can go
+		ld	hl,lddfix	;   out: "ld ixh,iyl" is not an
+		cp	(hl)		;   instruction, because only one of
+		jp	nz,erroper	;   the two could be emitted
+
+ld.hlfe:	ld	c,040h		; 40h + 8*dst + src, which is the
+		ld	a,(lddcod)	;   ordinary register-to-register
+		call	ld.x8		;   opcode behind a prefix
+		ld	c,a
+		ld	a,(opcod)
+		add	a,c
+		jp	emitop
+
+ld.hlfn:	ld	c,006h		; 06h + 8*dst, and the byte after
+		ld	a,(lddcod)
+		call	ld.x8
+		call	emitop
+		jp	emitxs
+
+ld.r8h:		ld	a,(lddcod)	; "ld b,ixh": the PLAIN operand is
+		call	ld.hpln		;   the destination here, and the
+		jr	ld.hlfe		;   rule does not care which it is.
+					;   opfix is the source's already
+
+; ld.hpln - the operand that is not the index half may not be H, L or
+;   (HL).
+;
+;   One prefix governs the whole instruction: "ld h,ixl" would assemble
+;   as "ld ixh,ixl" and say something the source did not, and code 6
+;   behind a prefix is the INDEXED form, so "ld ixh,(hl)" is
+;   "ld h,(ix+d)". Both of those are this one test, from either
+;   direction.
+;
+; Input:	A = the plain operand's register code
+; Output:	returns, or erroper does not return
+; Modifies:	AF
+
+ld.hpln:	cp	4
+		ret	c		; B, C, D and E
+		cp	7
+		jp	nz,erroper	; H is 4, L is 5 and (HL) is 6
+		ret			; and A is 7
+
 ; --- the destination is an 8-bit register or (HL): code 6 is (HL), and
 ;     the two are the same thing everywhere but here.
 
 ld.r8:		ld	a,(opkind)
 		cp	OK_R8
 		jr	z,ld.r8r
+		cp	OK_R8X
+		jp	z,ld.r8h	; "ld b,ixh"
 		cp	OK_IDX
 		jr	z,ld.r8x
 		cp	OK_IMM
@@ -849,6 +925,13 @@ cls.bit:	call	opexp		; the bit number. PASS 1 DOES NOT
 
 cls.rot:	call	opr8
 		jp	c,erroper
+		ld	a,(opkind)	; AND NO INDEX HALF: DD CB d op
+		cp	OK_R8X		;   addresses memory, so there is no
+		jp	z,erroper	;   room for a register - "rlc ixh"
+					;   would be three bytes of a four-
+					;   byte instruction. The DD CB forms
+					;   that DO name a register are the
+					;   family 101 declined
 		ld	a,(opfix)	; DD CB d op - THE ONE ENCODING IN
 		or	a		;   THE INSTRUCTION SET whose
 		call	nz,emitb	;   displacement comes BEFORE its
@@ -892,9 +975,11 @@ cls.ex:		call	opany
 		ld	a,(opcod)
 		cp	2		; "ex (sp),bc" does not exist
 		jp	nz,erroper
-		ld	a,0e3h		; opany cleared opfix and opword
-		call	emitop		;   only sets it for IX and IY, so
-		ret			;   this is E3h alone
+		ld	a,0e3h		; opany cleared opfix, and HL does
+		call	emitop		;   not set it - opword sets it for
+		ret			;   IX, IY and the four index halves,
+					;   none of which reaches here - so
+					;   this is E3h alone
 
 ex.spx:		ld	a,0e3h		; and the same call is DD E3 here,
 		call	emitop		;   the prefix having come from the
@@ -935,12 +1020,24 @@ ex.af:		call	opcomma		; "ex af,af'". The apostrophe gets
 ; --- C_IN and C_OUT: one instruction written backwards. Both are two
 ;     bytes; in both, the PORT decides which register is allowed. The
 ;     only difference is which operand comes first, so they share
-;     opport and inout and differ in nine lines.
+;     opport and inout.
+;
+;     AND BOTH HAVE AN UNDOCUMENTED FORM at register code 6 - the slot
+;     (HL) fills everywhere else, and the one register field of the ED
+;     group that names no register. "IN F,(C)" is ED 70 and
+;     "OUT (C),0" is ED 71. Neither operand is a register, so neither
+;     is in regtab: each has a one-row table of its own, asked only
+;     where this code used to go straight to erroper. 103 has the
+;     measurements, and the warning that the value ED 71 writes is not
+;     0 on these machines.
 
 cls.in:		ld	hl,regtab	; the register comes first here
 		call	opword
+		jr	nc,cls.inr
+		ld	hl,inftab	; not a register: "IN F,(C)" is the
+		call	opword		;   only other first operand there is
 		jp	c,erroper
-		ld	a,(opkind)
+cls.inr:	ld	a,(opkind)
 		cp	OK_R8
 		jp	nz,erroper
 		ld	a,(opcod)
@@ -958,8 +1055,11 @@ cls.out:	call	opport		; and the port comes first here
 		jp	c,erroper
 		ld	hl,regtab
 		call	opword
+		jr	nc,cls.outr
+		ld	hl,out0tab	; not a register: "OUT (C),0" is the
+		call	opword		;   only other second operand
 		jp	c,erroper
-		ld	a,(opkind)
+cls.outr:	ld	a,(opkind)
 		cp	OK_R8
 		jp	nz,erroper
 		ld	a,(opcod)	; no need to keep it: nothing runs
@@ -1112,11 +1212,30 @@ inscod:		defs	1	; A CODE A HANDLER MUST KEEP across a
 				;   register across the opany that reads
 				;   the port, and JP's, JR's and CALL's
 				;   opcode across opexp, which modifies
-				;   BC so a register will not do
+				;   BC so a register will not do. And
+				;   ld.hlf's SOURCE prefix across the one
+				;   store that replaces it with the
+				;   destination's - a byte, not a code,
+				;   and the same need
 lddst:		defs	1	; cls.ld: what the destination was,
 lddcod:		defs	1	;   the code it gave, and the PREFIX
 lddfix:		defs	1	;   it forced, across the second
 				;   opany call - which clears opfix
+
+; The two operands that are not registers, in regtab's row shape so
+; that opword can read them: a length byte, the name in upper case, a
+; kind and a code. BOTH ARE REGISTER CODE 6 - the slot (HL) occupies
+; everywhere else - which is the whole reason ED 70 and ED 71 exist.
+;
+; TWO TABLES AND NOT ONE, for the reason regtab and cctab are two: the
+; handler knows what it is asking for. One table with both rows would
+; accept "in 0,(c)" and "out (c),f", which are instructions nowhere.
+
+inftab:		defb	1,	"F",	OK_R8,	6
+		defb	0		; the end of the table
+
+out0tab:	defb	1,	"0",	OK_R8,	6
+		defb	0		; the end of the table
 
 ; The jump table, one word per class, in the order of optab.inc. All
 ; twenty-one entries are here from the start so that the later notes
