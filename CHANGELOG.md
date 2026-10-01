@@ -2,6 +2,46 @@
 
 Tatara and Tanren. Newest first.
 
+## v1.2.0 - 2026-10-02
+
+- **The index halves are assembled**: `IXH`, `IXL`, `IYH` and `IYL`, in
+  `LD` both ways round, in `INC` and `DEC`, and in `ADD`, `ADC`, `SBC`,
+  `SUB`, `AND`, `XOR`, `OR` and `CP`. `LD IXH,n` and `LD IXL,IXH` are
+  forms; `LD H,IXL` and `LD IXH,IYL` are not, because the prefix
+  governs the whole instruction and not the operand, and `RLC IXH` is
+  not either, because the `CB` group uses that field for a
+  displacement. They do the same thing on a turbo R as on a Z80.
+  SOLiD `AS`'s spellings `HX`, `LX`, `HY` and `LY` are not accepted.
+- **`IXH`, `IXL`, `IYH` and `IYL` are no longer available as symbol
+  names**, in a label, an `EQU`, a `SET`, a `DEFL`, a `PUBLIC` or an
+  `EXTRN`. M80 allows them, so **this is a deliberate
+  incompatibility**: now that they are registers, a program that used
+  one as a label would assemble to different bytes with nothing said -
+  `ld a,ixh` was an immediate load of a symbol and is an instruction.
+  The error names the line that defines the name.
+- **`IN F,(C)` and `OUT (C),0` are assembled**, `ED 70` and `ED 71`:
+  the register code 6 rows of the `ED` input/output group, the slot
+  `(HL)` fills everywhere else. `IN F,(C)` reads the port and keeps
+  only the flags; `OUT (C),0` writes to it. Bare `IN (C)` is not
+  accepted - it is the same instruction with the `F` left out - and the
+  operand of `OUT (C),0` is the literal digit, so `OUT (C),00h` is not
+  a form. A numbered port still takes the accumulator and nothing else,
+  so `IN F,(0AAh)` is refused as `IN B,(0AAh)` always was.
+  **`OUT (C),0` does not necessarily write 0**: on an MSX it was
+  measured writing `FFh`, on both a Z80 and an R800, which is the
+  published behaviour of CMOS parts. The instruction is worth having
+  for its port cycle; the byte it carries is not something to rely on.
+- **`SLL` is assembled**, the undocumented eighth row of the `CB`
+  group: shift left and set bit 0, `CB 30` to `CB 37`, with `(HL)` and
+  the indexed forms like every other member. `SL1` and `SLIA` are not
+  accepted - neither M80 nor SOLiD `AS` knows any spelling of this
+  instruction, so there is no dialect to match and one name is enough.
+  **It does not do the same thing on a turbo R**: the R800 executes
+  `CB 30` as `SLA`, clearing bit 0 where a Z80 sets it, and the carry
+  is right either way so nothing but the low bit shows it. Tatara
+  assembles it on any machine, as it does the R800's own `MULUB` and
+  `MULUW`; the manual says what it does where.
+
 ## v1.1.7 - 2026-10-02
 
 - A column-1 word beginning with `*` or `$` is a **control line**, which
