@@ -61,6 +61,13 @@ tanren /q /m /o:twocode.com twocode.tro >> results.txt
 echo === EXTRA TWO WAYS (expect the file and the segment named) >> results.txt
 tatara /q extradat.as extradat.tro >> results.txt
 tanren /q twocode.tro extradat.tro >> results.txt
+echo === A LATE ENTRY POINT (expect the warning above the summary) >> results.txt
+tatara /q lateent.as lateent.tro >> results.txt
+tanren /o:lateent.com lateent.tro >> results.txt
+echo === THE SAME UNDER /Q (expect the warning and nothing else) >> results.txt
+tanren /q /o:lateent.com lateent.tro >> results.txt
+echo === THE SAME WITH /B (expect no warning at all) >> results.txt
+tanren /q /b /o:lateent.bin lateent.tro >> results.txt
 echo === THE MAP with addresses (expect C at 0100, D after it) >> results.txt
 tanren /q /m a.tro b.tro c.tro >> results.txt
 echo === THREE GROUPS OF ONE SEGMENT (expect size 0014, one base) >> results.txt

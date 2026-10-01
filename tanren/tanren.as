@@ -130,6 +130,12 @@ main.all:	call	lsglay		; every segment gets an address,
 		call	main.p2		; PASS 2: the content, the fixups
 					;   and the file
 
+		call	main.warn	; AND BEFORE THE /Q TEST, because
+					;   /Q hides the summary and a build
+					;   file is exactly where a program
+					;   entered in the wrong place would
+					;   go unnoticed
+
 		ld	a,(loptquiet)	; the summary, unless /Q
 		or	a
 		jp	nz,dosexit
@@ -192,6 +198,58 @@ main.wcr:	ld	de,msg_wdot
 main.non:	ld	de,msg_wnone
 		call	putsz
 		jp	dosexit
+
+; main.warn - the entry point is not the first byte of the image.
+;
+;   MSX-DOS LOADS A .COM AT ITS START ADDRESS AND JUMPS THERE. The
+;   address END named reaches the object file and the Wrote line and
+;   nothing else ever reads it, so a program whose first bytes are a
+;   message runs the message. examples/dirs did exactly that: 104
+;   bytes of text, start at 0168h, and a machine that froze.
+;
+;   NOT UNDER /B: a BLOAD header carries an execution address and
+;   BASIC jumps to it, so there the entry point means what it says.
+;
+;   AGAINST imglo AND NOT AGAINST 0100h, which are the same test for
+;   a real .COM and differ only where the literal would be wrong:
+;   with /P:, where the image was moved on purpose.
+;
+;   094 refused this warning because the segment order was not the
+;   user's to control. 094 made it theirs, which is what turned noise
+;   into advice.
+;
+; Input:	imgany, loptbin, lentgot, lentadr, imglo, outname
+; Output:	one line, or nothing at all
+; Modifies:	AF, BC, DE, HL
+
+main.warn:	ld	a,(imgany)	; nothing written, nothing entered
+		or	a
+		ret	z
+		ld	a,(loptbin)
+		or	a
+		ret	nz		; the header carries it
+		ld	a,(lentgot)
+		or	a
+		ret	z		; no module named one
+		ld	hl,(lentadr)
+		ld	de,(imglo)
+		or	a
+		sbc	hl,de
+		ret	z		; the first byte, which is right
+		ld	de,msg_warn1
+		call	putsz
+		ld	de,outname
+		call	putszu
+		ld	de,msg_warn2
+		call	putsz
+		ld	hl,(imglo)
+		call	dmpw
+		ld	de,msg_warn3
+		call	putsz
+		ld	hl,(lentadr)
+		call	dmpw
+		ld	de,msg_wdot	; the Wrote line's full stop and
+		jp	putsz		;   newline, which is this one too
 
 main.usage:	jp	lcmusage
 main.ver:	call	lcmver
@@ -825,6 +883,9 @@ msg_wbyte:	defb	" bytes)",0
 msg_wbld:	defb	", BLOAD header",0
 msg_wentr:	defb	", entry ",0
 msg_wdot:	defb	".",CHR_CR,CHR_LF,0
+msg_warn1:	defb	"WARNING: ",0	; main.warn, which says both
+msg_warn2:	defb	" is entered at ",0 ;   addresses because /Q may
+msg_warn3:	defb	", not at ",0	;   have hidden the summary
 msg_wnone:	defb	"Nothing to write: no module has any"
 		defb	" content.",CHR_CR,CHR_LF,0
 msg_ltail:	defb	": bytes follow the END record.",CHR_CR
