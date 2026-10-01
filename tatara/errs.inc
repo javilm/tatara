@@ -81,6 +81,8 @@
 					; or with no name, or with a label
 		extrn errngrp		; a transient DSEG with no GROUP
 					; open yet
+		extrn errlabc		; a label holding a character that
+					; is not a name character
 		extrn errnlab		; EQU, DEFL or MACRO with a colon
 					; after the name, which makes it a
 					; label - M80 2.3.1

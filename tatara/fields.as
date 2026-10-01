@@ -26,6 +26,9 @@ FLDLIB		equ	1		; skips the external in fields.inc
 
 COLON		equ	03ah		; :
 SEMIC		equ	03bh		; ;
+BANG		equ	021h		; !
+LANGLE		equ	03ch		; <
+RANGLE		equ	03eh		; >
 
 ; splitln - cut one source line into label, operation, operand, comment.
 ;
@@ -152,6 +155,10 @@ splitln.arg:	call	flskip
 		ld	(ix+FL_ARG+1),h
 		ld	b,0		; B = characters taken
 		ld	c,0		; C = the quote we are inside, 0 = none
+		ld	d,0		; D = how deep in <> we are. A macro
+					;   argument may hold a ";" inside
+					;   brackets or behind a "!", and M80
+					;   passes both - measured, appendix J
 splitln.args:	ld	a,(hl)
 		or	a
 		jr	z,splitln.arge	; the end of the line
@@ -161,9 +168,19 @@ splitln.args:	ld	a,(hl)
 		jr	nz,splitln.inq	; inside a string: only the closing
 					; quote means anything
 		ld	a,e
+		cp	BANG
+		jr	z,splitln.arbl	; "!x": x is text, whatever x is
+		cp	LANGLE
+		jr	z,splitln.arbo
+		cp	RANGLE
+		jr	z,splitln.arbc
 		cp	SEMIC
-		jr	z,splitln.arge	; the comment starts here
-		cp	QUOTE1
+		jr	nz,splitln.arnq
+		ld	a,d		; A SEMICOLON INSIDE BRACKETS IS TEXT.
+		or	a		;   mxargs is what takes the brackets
+		jr	z,splitln.arge	;   off and what strips the "!" - this
+		ld	a,e		;   module's only job is to stop the
+splitln.arnq:	cp	QUOTE1		;   field ending here
 		jr	z,splitln.opnq
 		cp	QUOTE2
 		jr	nz,splitln.argt
@@ -179,6 +196,20 @@ splitln.inq:	ld	a,e
 splitln.argt:	inc	hl
 		inc	b
 		jr	splitln.args
+
+splitln.arbl:	inc	hl		; THE "!" IS KEPT: mxargs removes it
+		inc	b		;   and has to see it. The character
+		ld	a,(hl)		;   after it is taken whatever it is,
+		or	a		;   and if the line ended instead, HL
+		jr	z,splitln.arge	;   is on the terminator already
+		jr	splitln.argt
+splitln.arbo:	inc	d
+		jr	splitln.argt
+splitln.arbc:	ld	a,d		; never below zero: an unmatched ">"
+		or	a		;   is not this module's to report
+		jr	z,splitln.argt
+		dec	d
+		jr	splitln.argt
 
 ; splitln.aq - the quote at arqhl opened a run that the line ended
 ;   inside, so it was not a delimiter at all: it was an apostrophe in an

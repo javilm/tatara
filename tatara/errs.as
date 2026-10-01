@@ -36,6 +36,7 @@ ERRSLIB		equ	1		; skips the externals in errs.inc
 		public	errsflg
 		public	errgrp
 		public	errngrp
+		public	errlabc
 		public	errnlab
 		public	errtrl		; not an error: the trail printer,
 					;   which main.noinc needs too
@@ -245,6 +246,11 @@ errgrp:		ld  de,msg_grp
 ; calls it an O error and does not open a macro it refuses. Does not
 ; return.
 errnlab:	ld	de,msg_nlab
+		jp	errdie
+
+; errlabc - a label holding a character that a name may not hold. M80
+; answers these with a U and stops. Does not return.
+errlabc:	ld	de,msg_labc
 		jp	errdie
 
 ; errngrp - a label, DS or ORG inside a transient DSEG before any GROUP
@@ -651,6 +657,11 @@ msg_sflg:	defb	"this segment was declared differently"
 		defb	" before.",CHR_CR,CHR_LF,"$"
 msg_grp:	defb	"GROUP needs a name, no label, and a"
 		defb	" transient DSEG.",CHR_CR,CHR_LF,"$"
+msg_labc:	defb	"a name may hold only letters, digits,"
+		defb	" ? @ . _ and the dollar sign.",CHR_CR
+		defb	CHR_LF,"$"	; NOT a "$" in the text: errdie
+					;   prints with BDOS 09h and would stop
+					;   there. 099 learned this the slow way
 msg_nlab:	defb	"EQU, DEFL and MACRO take a name, not a"
 		defb	" label.",CHR_CR,CHR_LF,"$"
 msg_ngrp:	defb	"this transient DSEG needs a GROUP"

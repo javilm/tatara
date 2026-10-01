@@ -761,6 +761,16 @@ tatara /q /p /l /s labcnd.as >> results.txt
 echo === LABDIR.AS /S (expect LPUB LEXT LINC LXM defined, LLOC LEM not) >> results.txt
 tatara /q /p /l /s labdir.as >> results.txt
 
+echo === LABCH.AS (expect: a name may hold only letters, digits...) >> results.txt
+tatara /q /p labch.as >> results.txt
+
+echo === STAREJ.AS (expect two page breaks and NO symbol for them) >> results.txt
+tatara /q /l starej.as starej.tro starej.prn
+type starej.prn >> results.txt
+
+echo === SEMI.AS (expect 61 3B 62 twice: both forms pass one) >> results.txt
+tatara /q /p /l semi.as >> results.txt
+
 echo === LABUND.AS (expect undefined symbol, line 11) >> results.txt
 tatara /q /p labund.as >> results.txt
 

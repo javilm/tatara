@@ -12,6 +12,9 @@
 					; out: HL = the value, exty = its type
 		extrn evalabs		; the same, and it must be ABSOLUTE:
 					;   errrel otherwise. DS, REPT
+		extrn exisid		; may this character appear in a
+					;   name? Z set = yes
+					; in:  A = the character
 		extrn exlook		; the ADDRESS of the routine that
 					;   looks a symbol up. Pass 1 stores
 					;   pass 1's here

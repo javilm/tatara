@@ -149,6 +149,28 @@ main.nff:
 		call	dirlook		; A = the number, 0 = it is not one
 		ld	(dirnum),a
 
+		ld	a,(flds+FL_OPL)	; A STARRED CONTROL IS A WHOLE LINE
+		or	a		;   in column 1 and nothing else, so a
+		jr	nz,main.nostr	;   line with an operation is not one
+		ld	a,(flds+FL_LABL)
+		or	a
+		jr	z,main.nostr
+		ld	de,(flds+FL_LAB)
+		ld	a,(de)
+		cp	"*"		; M80 reads * and $ in column 1 the
+		jr	z,main.star	;   same way. ONLY THESE TWO NAMES
+		cp	"$"		;   are followed: M80's general rule
+		jr	nz,main.nostr	;   would stop $foo: being a label,
+main.star:	ld	a,(flds+FL_LABL) ;  and its answer for an unknown
+		ld	b,a		;   starred word is not consistent -
+		call	dirlook		;   *LIST gives U and leaves three
+		or	a		;   names behind, *foo: gives nothing.
+		jr	z,main.nostr	;   Appendix J
+		ld	(dirnum),a
+		xor	a
+		ld	(flds+FL_LABL),a ; it was never a label
+main.nostr:
+
 		ld	a,(passno)	; /F and /M are diagnostics of pass 0's
 		dec	a		; work, and pass 0 now runs twice.
 		jr	nz,main.nofld	; Dumping on pass 1 only says
@@ -946,6 +968,17 @@ labpub:		call	labcol
 deflab:		ld	a,(flds+FL_LABL)
 		or	a
 		ret	z		; no label on this line
+		ld	b,a		; EVERY CHARACTER OF IT, before any of
+		ld	hl,(flds+FL_LAB) ;  it is believed. splitln takes the
+dlab.ch:	ld	a,(hl)		;   label as everything up to a colon
+		call	exisid		;   or a separator, which is M80's own
+		jp	nz,errlabc	;   rule for finding one - and M80 then
+		inc	hl		;   refuses the ones that are not names
+		djnz	dlab.ch		;   (U, appendix J). We defined them,
+					;   and exisid stops an expression's
+					;   name scan at the first such
+					;   character - so the symbol could be
+					;   defined and never referred to
 		call	labpub		; "name::", before the definition
 		call	segwr		; a variable in a transient DSEG
 					;   must be inside a GROUP

@@ -140,5 +140,7 @@ dirtab:		defb	5,	"MACRO",	D_MACRO
 		defb	5,	"TITLE",	D_TITLE
 		defb	6,	"SUBTTL",	D_SUBTTL
 		defb	4,	"PAGE",		D_PAGE
+		defb	6,	"*EJECT",	D_PAGE
+		defb	6,	"$EJECT",	D_PAGE
 		defb	0		; the end of the table
 

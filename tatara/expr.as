@@ -31,6 +31,7 @@ EXPRLIB		equ	1		; skips the externals in expr.inc
 		public	exinit
 		public	evalexp
 		public	evalabs
+		public	exisid		; 099: deflab checks a label with it
 		public	exlook
 		public	exty
 		public	exeidx
@@ -949,8 +950,13 @@ exwpk.end:	ld	a,c
 
 ; exisid - may this character appear in a name? M80's set is the
 ;   letters, the digits, and ? @ . _ $ - the same set mdisid uses in
-;   macros.as, and the fifth place this test has been written. It belongs
-;   in strutil.as with the case fold.
+;   macros.as, and the fifth place this test has been written.
+;
+;   PUBLIC SINCE 099: deflab asks it of every character of a label,
+;   which is what stops "foo*bar" becoming a symbol nothing can name.
+;   mdisid is still a second copy and should be deleted in favour of
+;   this one the next time macros.as is open. NOT strutil.as, which is
+;   shared with TANREN - the linker would carry it and never call it.
 ;
 ; Output:	Z set = yes
 ; Modifies:	F
