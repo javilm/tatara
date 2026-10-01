@@ -758,6 +758,9 @@ tatara /q /p /l labif.as >> results.txt
 echo === LABCND.AS /S (expect LIF1 LELS LIF0 LRPT LEND2 defined, LEND not) >> results.txt
 tatara /q /p /l /s labcnd.as >> results.txt
 
+echo === LABDIR.AS /S (expect LPUB LEXT LINC LXM defined, LLOC LEM not) >> results.txt
+tatara /q /p /l /s labdir.as >> results.txt
+
 echo === LABUND.AS (expect undefined symbol, line 11) >> results.txt
 tatara /q /p labund.as >> results.txt
 

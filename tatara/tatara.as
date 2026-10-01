@@ -221,10 +221,15 @@ main.cnd0:
 		jp	z,main.grp	; a GROUP line takes no label at all
 		cp	D_EQU
 		jp	z,main.equ	; like SET, its label names the VALUE
-		cp	D_PUBLIC
-		jp	z,main.pub	; these three take no label either
-		cp	D_EXTRN
-		jp	z,main.ext
+		cp	D_PUBLIC	; THESE TWO DEFINE THEIR OWN LABEL,
+		jp	z,main.pub	;   at main.nlst, and come through
+		cp	D_EXTRN		;   here only because they share the
+		jp	z,main.ext	;   routine that walks a name list.
+					;   The comment that stood here said
+					;   they "take no label either" and
+					;   cited nothing: M80 defines a label
+					;   on both, at the location counter.
+					;   Issue #28, note 098
 		cp	D_END
 		jp	z,main.end
 
@@ -375,6 +380,9 @@ main.pub:	ld	hl,sympub
 		jr	main.nlst
 main.ext:	ld	hl,symext
 main.nlst:	ld	(nlproc),hl
+		call	deflab		; AFTER THE STORE, not before it:
+					;   deflab destroys HL, and HL is how
+					;   these two tell each other apart
 		ld	de,(flds+FL_ARG)
 		ld	a,(flds+FL_ARGL)
 		ld	b,a
@@ -959,7 +967,14 @@ deflab:		ld	a,(flds+FL_LABL)
 ; An INCLUDE line is consumed here and never written out. From the next
 ; time round the loop, getline is reading the file it opened.
 
-main.incl:	call	doincl		; CY set = could not open it
+main.incl:	call	deflab		; THE INCLUDING LINE'S COUNTER, before
+					;   a byte of the included file exists.
+					;   M80 cannot be asked - it will not
+					;   run an include at all - so this
+					;   follows the rule the other eight
+					;   rows were measured against. 088,
+					;   and decisions-pending until now
+		call	doincl		; CY set = could not open it
 		jp	c,main.noinc
 		jp	main.loop
 
@@ -1170,8 +1185,10 @@ main.irp4:	ex	de,hl		; DE -> the items, A = how many,
 ; EXITM inside a branch that is not being taken is swallowed rather than
 ; obeyed.
 
-main.exitm:	call	mexitm
-		jp	main.loop
+main.exitm:	call	deflab		; FIRST: mexitm does not return when
+		call	mexitm		;   no expansion is open, and the
+		jp	main.loop	;   label is M80's whether or not
+					;   this one is the stray kind
 
 ; A form feed. The page breaks BEFORE the line is listed - the opposite
 ; of PAGE, whose note lsteject leaves is read after - and then the line
