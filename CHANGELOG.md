@@ -2,6 +2,55 @@
 
 Tatara and Tanren. Newest first.
 
+## v1.1.7 - 2026-10-02
+
+- A column-1 word beginning with `*` or `$` is a **control line**, which
+  is what M80 makes of one. `*EJECT` and `$EJECT` are the two this
+  assembler has; any other stops with `only *EJECT and its dollar
+  spelling are control lines`. `*TITLE` and `$TITLE` are M80's spelling
+  of `SUBTTL` and are not accepted: the title text holds a space, so
+  the line is cut into fields before anything could read it - **write
+  `SUBTTL`**. Before this, `$title('Dollar title')` was refused for
+  holding characters a name may not, which was true of the line and no
+  help to its author.
+- A label may hold only the characters a name may hold - letters,
+  digits and `? @ . _ $`. `foo*bar` was accepted and entered in the
+  symbol table, where nothing could ever refer to it: an expression's
+  name stops at the `*`. M80 answers such a line with a `U` and one
+  fatal error.
+- `*EJECT` and `$EJECT` in column 1 are accepted as `PAGE`, which is
+  what M80 does with them. The other starred controls are not followed:
+  `*TITLE` needs an operand syntax of its own, and `*LIST` and
+  `*INCLUDE` are not M80 controls at all.
+- **A semicolon can be passed to a macro**, as `!;` or inside `<...>`,
+  which is what M80 does with both. The macro expander always
+  understood them; the line was cut into fields at the semicolon before
+  it ever saw them, so `m a!;b` passed `a`.
+- A label on a `PUBLIC`, `EXTRN`, `INCLUDE` or `EXITM` line is now
+  defined, with the location counter, instead of being dropped in
+  silence. M80 defines it on all of these - it was asked - and 088's
+  rule already said it should: *a label on a line that emits no bytes
+  takes the location counter, if that line is being assembled*. A label
+  on a `LOCAL` or an `ENDM` line is still dropped, and that is correct
+  and matches M80: those lines are read while a macro body is collected
+  and are never assembled.
+- Tanren warns when **the entry point is not the first byte of the
+  image**: `WARNING: NAME.COM is entered at 0100, not at 0168.` MSX-DOS
+  loads a `.COM` at its start address and jumps there, so a program
+  whose first bytes are data runs the data; the address `END` names
+  reaches the object file and the summary and nothing else reads it.
+  The warning is printed **before the summary, so `/Q` does not hide
+  it** - a build file is exactly where this goes unnoticed. Nothing is
+  said when `/B` was given, because a BLOAD header carries an
+  execution address and BASIC obeys it, nor when no module named an
+  entry point at all.
+- `examples/dirs`: `SRC\MAIN.AS` included its two message headers
+  before `CSEG`, so `DIRS.COM` began with 104 bytes of text and was
+  entered in the middle of it - it printed nothing from `A:` and froze
+  the machine from anywhere else. The two includes are now below the
+  code, where every other example already keeps its messages, and the
+  file says why.
+
 ## v1.1.6 - 2026-10-01
 
 - Tanren names the object file in the five errors it can raise while

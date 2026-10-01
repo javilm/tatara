@@ -573,11 +573,11 @@ lcmusage:	call	lcmver
 		jp	dosexit
 
 ; THE VERSION IS WRITTEN ONCE. cmdline.as puts two labels together so
-; that the listing's page header can have "Tatara v1.1.6" as thirteen
+; that the listing's page header can have "Tatara v1.1.7" as thirteen
 ; bytes; the linker has no listing and needs only the number, so
 ; msg_lvnum stands alone between the two halves of the banner.
 
-msg_lvnum:	defb	"1.1.6","$"
+msg_lvnum:	defb	"1.1.7","$"
 msg_tro:	defb	".tro",0	; what lcmext appends,
 msg_com:	defb	".com",0	;   what lcmodef does, and
 msg_bin:	defb	".bin",0	;   what it does instead with /B
