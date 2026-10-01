@@ -83,6 +83,8 @@
 					; open yet
 		extrn errlabc		; a label holding a character that
 					; is not a name character
+		extrn errstar		; a column-1 word beginning with *
+					; or $ that is not *EJECT or $EJECT
 		extrn errnlab		; EQU, DEFL or MACRO with a colon
 					; after the name, which makes it a
 					; label - M80 2.3.1

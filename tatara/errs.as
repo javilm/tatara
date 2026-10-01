@@ -37,6 +37,7 @@ ERRSLIB		equ	1		; skips the externals in errs.inc
 		public	errgrp
 		public	errngrp
 		public	errlabc
+		public	errstar
 		public	errnlab
 		public	errtrl		; not an error: the trail printer,
 					;   which main.noinc needs too
@@ -251,6 +252,14 @@ errnlab:	ld	de,msg_nlab
 ; errlabc - a label holding a character that a name may not hold. M80
 ; answers these with a U and stops. Does not return.
 errlabc:	ld	de,msg_labc
+		jp	errdie
+
+; errstar - a column-1 word beginning with * or $ that is not one of
+; the two control lines we have. M80 has *EJECT and *TITLE (and $ for
+; both); *TITLE is SUBTTL with a quoted operand inside brackets, which
+; would have to be read before splitln cuts the line at the space in
+; it - so the message names what there IS. Does not return.
+errstar:	ld	de,msg_star
 		jp	errdie
 
 ; errngrp - a label, DS or ORG inside a transient DSEG before any GROUP
@@ -657,11 +666,18 @@ msg_sflg:	defb	"this segment was declared differently"
 		defb	" before.",CHR_CR,CHR_LF,"$"
 msg_grp:	defb	"GROUP needs a name, no label, and a"
 		defb	" transient DSEG.",CHR_CR,CHR_LF,"$"
+msg_star:	defb	"only *EJECT and its dollar spelling are"
+		defb	" control lines.",CHR_CR,CHR_LF,"$"
+					; NO "$" IN THE TEXT: errdie prints
+					;   with BDOS 09h and would stop at
+					;   one, which is how 099 lost half
+					;   of its message
 msg_labc:	defb	"a name may hold only letters, digits,"
 		defb	" ? @ . _ and the dollar sign.",CHR_CR
 		defb	CHR_LF,"$"	; NOT a "$" in the text: errdie
 					;   prints with BDOS 09h and would stop
-					;   there. 099 learned this the slow way
+					;   there. It was written with one
+					;   and lost half the line
 msg_nlab:	defb	"EQU, DEFL and MACRO take a name, not a"
 		defb	" label.",CHR_CR,CHR_LF,"$"
 msg_ngrp:	defb	"this transient DSEG needs a GROUP"

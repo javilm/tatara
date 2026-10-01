@@ -761,6 +761,9 @@ tatara /q /p /l /s labcnd.as >> results.txt
 echo === LABDIR.AS /S (expect LPUB LEXT LINC LXM defined, LLOC LEM not) >> results.txt
 tatara /q /p /l /s labdir.as >> results.txt
 
+echo === STARBAD.AS (expect: only *EJECT and its dollar spelling) >> results.txt
+tatara /q /p starbad.as >> results.txt
+
 echo === LABCH.AS (expect: a name may hold only letters, digits...) >> results.txt
 tatara /q /p labch.as >> results.txt
 

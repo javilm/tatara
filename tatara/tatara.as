@@ -149,27 +149,25 @@ main.nff:
 		call	dirlook		; A = the number, 0 = it is not one
 		ld	(dirnum),a
 
-		ld	a,(flds+FL_OPL)	; A STARRED CONTROL IS A WHOLE LINE
-		or	a		;   in column 1 and nothing else, so a
-		jr	nz,main.nostr	;   line with an operation is not one
-		ld	a,(flds+FL_LABL)
-		or	a
-		jr	z,main.nostr
-		ld	de,(flds+FL_LAB)
-		ld	a,(de)
-		cp	"*"		; M80 reads * and $ in column 1 the
-		jr	z,main.star	;   same way. ONLY THESE TWO NAMES
-		cp	"$"		;   are followed: M80's general rule
-		jr	nz,main.nostr	;   would stop $foo: being a label,
-main.star:	ld	a,(flds+FL_LABL) ;  and its answer for an unknown
-		ld	b,a		;   starred word is not consistent -
-		call	dirlook		;   *LIST gives U and leaves three
-		or	a		;   names behind, *foo: gives nothing.
-		jr	z,main.nostr	;   Appendix J
-		ld	(dirnum),a
-		xor	a
-		ld	(flds+FL_LABL),a ; it was never a label
-main.nostr:
+		ld	a,(flds+FL_LABL) ; A COLUMN-1 WORD BEGINNING WITH *
+		or	a		;   OR $ IS A CONTROL LINE, which is
+		jr	z,main.nostr	;   M80's rule and now ours. 099 took
+		ld	de,(flds+FL_LAB) ;  only the two names and only on a
+		ld	a,(de)		;   line with no operation, for two
+		cp	"*"		;   reasons that were both weaker than
+		jr	z,main.star	;   they looked: $foo: is not a label
+		cp	"$"		;   in M80 either, so no portable
+		jr	nz,main.nostr	;   source has one; and M80's answer
+main.star:	ld	a,(flds+FL_LABL) ;  for an unknown starred word being
+		ld	b,a		;   inconsistent was a reason not to
+		call	dirlook		;   copy ITS answers, never a reason
+		or	a		;   not to have one of our own.
+		jp	z,errstar	;   THE OPERATION FIELD IS NOT LOOKED
+		ld	(dirnum),a	;   AT: $title('Dollar title') has one,
+		xor	a		;   because the quote holds a space and
+		ld	(flds+FL_LABL),a ;  flsep ends a field there - and
+main.nostr:				;   that line is what the message is
+					;   for. 100
 
 		ld	a,(passno)	; /F and /M are diagnostics of pass 0's
 		dec	a		; work, and pass 0 now runs twice.
