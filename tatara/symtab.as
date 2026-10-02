@@ -1417,7 +1417,10 @@ seggrp:		ld	a,(sgflg)	; only inside a transient DSEG
 		or	a		;   operand, blanks trimmed
 		jp	z,errgrp
 		cp	SGNMAX+1
-		jp	nc,errseg
+		jp	nc,errsglen	; and NOT errseg, whose message names
+					;   ASEG, CSEG and DSEG - three
+					;   directives, and this is a GROUP
+					;   line
 
 		ld	ix,grptab	; its number, or the next free one
 		ld	a,b
@@ -1471,7 +1474,9 @@ seggrp.sel:	ld	hl,sgkey+1	; the same segment, the new group.
 
 segsel:		ld	a,(sgnlen)
 		cp	SGNMAX+1
-		jp	nc,errseg	; longer than the key can hold
+		jp	nc,errsglen	; longer than the key can hold, and
+					;   the message says so rather than
+					;   calling the line unparseable
 		ld	c,a
 		ld	b,0
 		ld	a,(sggrp)

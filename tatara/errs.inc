@@ -40,7 +40,11 @@
 					;     line - it fires at the end of the
 					;     source, so curline is useless
 		extrn errendm		; ENDM without a definition
-		extrn errmnam		; MACRO without a name
+		extrn errmnam		; MACRO without a name, and only
+					; that
+		extrn errmlen		; a macro name longer than MDNAMSZ
+		extrn errsglen		; a segment or group name longer
+					; than SGNMAX
 		extrn errparm		; more formal params than we can count
 		extrn errplst		; a parameter list that does not parse
 		extrn errlocl		; LOCAL after the body has started

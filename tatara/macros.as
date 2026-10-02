@@ -432,8 +432,13 @@ macdef.opn:	cp	D_MACRO
 mdname:		ld	a,(ix+FL_LABL)
 		or	a
 		jp	z,errmnam	; nothing in the label field
-		cp	MDNAMSZ
-		jp	nc,errmnam	; longer than we can remember
+		cp	MDNAMSZ+1	; MDNAMSZ characters is legal: mdnam
+		jp	nc,errmlen	;   is MDNAMSZ+1 bytes, the name and
+					;   its terminator. symtab.as spells
+					;   this test the same way for SGNMAX,
+					;   and this one said cp MDNAMSZ until
+					;   105 - so 64 was refused by a limit
+					;   that is 64
 		ld	(mdnaml),a
 		ld	c,a
 		ld	b,0

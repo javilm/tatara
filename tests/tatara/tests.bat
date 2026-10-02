@@ -214,6 +214,17 @@ tatara /q /p locctr.as >> results.txt
 echo === MACPASS.AS (expect not a directive, a macro or an instruction, line 4) >> results.txt
 tatara /q /p macpass.as >> results.txt
 
+rem --- macro names: how long, and what is said when it is too long
+
+echo === MAC64.AS /S (expect it to ASSEMBLE, two 00 bytes, T0 1) >> results.txt
+tatara /q /p /s /l mac64.as >> results.txt
+
+echo === MAC65.AS (expect at most 64 characters, line 2) >> results.txt
+tatara /q /p mac65.as >> results.txt
+
+echo === MACNON.AS (expect MACRO without a name, line 2) >> results.txt
+tatara /q /p macnon.as >> results.txt
+
 rem --- ASEG, CSEG, DSEG, and relocatable values
 
 echo === SEGS.AS (expect db 1 to db 6, all six) >> results.txt
@@ -259,6 +270,12 @@ tatara /q /p segtran.as >> results.txt
 
 echo === SEGASEG.AS (expect bad segment line, line 2) >> results.txt
 tatara /q /p segaseg.as >> results.txt
+
+echo === SEGLONG.AS (expect at most 16 characters, line 2) >> results.txt
+tatara /q /p seglong.as >> results.txt
+
+echo === GRPLONG.AS (expect at most 16 characters, line 3) >> results.txt
+tatara /q /p grplong.as >> results.txt
 
 echo === SEGXMIX.AS (expect relocation error, line 5) >> results.txt
 tatara /q /p segxmix.as >> results.txt

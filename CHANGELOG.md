@@ -2,6 +2,22 @@
 
 Tatara and Tanren. Newest first.
 
+## v1.2.1 - unreleased
+
+- **A macro name of exactly 64 characters is assembled.** 64 is the
+  limit and it was refused: the test was one tighter than the limit, so
+  the longest legal name was rejected - and rejected as **`MACRO
+  without a name`**, because the missing-name and too-long cases shared
+  one message. They have one each now, and the new one gives the
+  number: `a macro name may be at most 64 characters.`
+- **A segment or group name longer than 16 characters says so.** It
+  used to be reported as `bad ASEG, CSEG or DSEG line.` - which named
+  three directives, and on a `GROUP` line named none of them. `GROUP`
+  and the segment directives now both answer
+  `a segment or group name may be at most 16 characters.`, and
+  `bad ASEG, CSEG or DSEG line.` is left to the three parse failures it
+  describes.
+
 ## v1.2.0 - 2026-10-02
 
 - **The index halves are assembled**: `IXH`, `IXL`, `IYH` and `IYL`, in

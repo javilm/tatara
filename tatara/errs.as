@@ -18,6 +18,8 @@ ERRSLIB		equ	1		; skips the externals in errs.inc
 		public	errnoend
 		public	errendm
 		public	errmnam
+		public	errmlen
+		public	errsglen
 		public	errparm
 		public	errheap
 		public	errblen
@@ -127,8 +129,19 @@ errnoend:	ld	de,msg_noend
 errendm:	ld	de,msg_endm
 		jp	errdie
 
-; errmnam - a MACRO line with no name in the label field. Does not return.
+; errmnam - a MACRO line with no name in the label field. ONLY that: a
+; name too long to keep went here too until 105, which is how a
+; 64-character name came to be reported as a missing one. Does not
+; return.
 errmnam:	ld	de,msg_mnam
+		jp	errdie
+
+; errmlen - a macro name longer than MDNAMSZ. The number is in the
+; message because the number is the whole of the complaint, and it is
+; the number mdname enforces: MDNAMSZ characters, mdnam being
+; MDNAMSZ+1 bytes so that the terminator has somewhere to go. Does not
+; return.
+errmlen:	ld	de,msg_mlen
 		jp	errdie
 
 ; errparm - more formal parameters than we can count. Does not return.
@@ -226,10 +239,20 @@ errrel:		ld	de,msg_rel
 		jp	errdie
 
 ; errseg - an ASEG, CSEG or DSEG line that does not parse: an operand on
-; ASEG, a name longer than SGNMAX, TRANSIENT on a CSEG, or a word after
-; the comma that is not TRANSIENT. Does not return.
+; ASEG, TRANSIENT on a CSEG, or a word after the comma that is not
+; TRANSIENT. THREE conditions, and the message names the three
+; directives they can appear on. A name longer than SGNMAX was a fourth
+; until 105 - and it can arrive from a GROUP line, which is how this
+; message came to answer one. Does not return.
 errseg:		ld  de,msg_seg
 		jp  errdie
+
+; errsglen - a segment or group name longer than SGNMAX. One message for
+; both, because it is one limit: sgkey holds the group's number and then
+; the name, and segsel and seggrp measure the same sixteen bytes. Does
+; not return.
+errsglen:	ld	de,msg_sglen
+		jp	errdie
 
 ; errsflg - the same segment name, declared differently: "cseg foo" and
 ; then "dseg foo", or with and without TRANSIENT. The linker calls that
@@ -642,6 +665,10 @@ msg_noend:	defb	"macro definition not closed by ENDM.",CHR_CR
 msg_endm:	defb	"ENDM without a macro definition.",CHR_CR
 		defb	CHR_LF,"$"
 msg_mnam:	defb	"MACRO without a name.",CHR_CR,CHR_LF,"$"
+msg_mlen:	defb	"a macro name may be at most 64"
+		defb	" characters.",CHR_CR,CHR_LF,"$"
+msg_sglen:	defb	"a segment or group name may be at most"
+		defb	" 16 characters.",CHR_CR,CHR_LF,"$"
 msg_parm:	defb	"too many macro parameters.",CHR_CR,CHR_LF,"$"
 msg_plst:	defb	"bad macro parameter list.",CHR_CR,CHR_LF,"$"
 msg_heap:	defb	"out of mapper memory.",CHR_CR,CHR_LF,"$"
