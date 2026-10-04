@@ -17,6 +17,27 @@ Tatara and Tanren. Newest first.
   `a segment or group name may be at most 16 characters.`, and
   `bad ASEG, CSEG or DSEG line.` is left to the three parse failures it
   describes.
+- **Every symbol in both programs has been renamed**, from the
+  six-character spellings M80's own assembler imposed to names that say
+  what they are - `operand_word_length` where there was `opwlen`,
+  `error_segment_differs` where there was `errsflg`. The manual lists
+  long symbol names as a feature of this assembler, and its own source
+  was not using them. **Nothing changes for anyone running these
+  programs.** A rename cannot alter what an assembler emits, and that
+  was the test: the work went in fifty-three steps, every one of them
+  rebuilt on the MSX and checked against the same two checksums, and
+  the binaries came out of the last step byte for byte the same as they
+  went into the first - 30,978 bytes of `TATARA.COM` and 13,314 of
+  `TANREN.COM`, unmoved fifty-three times.
+
+  The comments moved with the names, so every routine's header still
+  describes the code underneath it. Nothing in `include/` changed, the
+  MSX-DOS function numbers and the ASCII names keep the spellings their
+  own documentation uses, and the MapperHeap library keeps the ones it
+  publishes. `naming-convention.md` has the rules and
+  `naming-map.md` every old name against its new one, which is what to
+  read a note older than this release with; the reasoning is in
+  `impl/106-naming.md` through `impl/158-the-tail.md`.
 
 ## v1.2.0 - 2026-10-02
 

@@ -1,4 +1,4 @@
-; C_LD: indexed, in both directions. t2 is the one form that emits
+; CLASS_LD: indexed, in both directions. t2 is the one form that emits
 ; from BOTH operands - the displacement from the destination and the
 ; immediate from the source - and t5 is a bare "(ix)", which is
 ; "(ix+0)" and the first test to write one

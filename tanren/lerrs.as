@@ -11,261 +11,339 @@
 ; long as it took someone to link two files and read the second one's
 ; error. Issue #26. The five that are raised while a file is open now
 ; print NAME: in front, the way the assembler prints FILE(line):, and
-; the four raised after every file is closed do not - objname is only
+; the four raised after every file is closed do not - object_name is only
 ; true while one is open.
 
-LERRLIB		equ	1	; skips the externals in lerrs.inc
+LERRS_INCLUDED	equ	1	; skips the externals in lerrs.inc
 
-		public	errlopn
-		public	errlmag
-		public	errlver
-		public	errltrn
-		public	errlunk
-		public	errlheap
-		public	errlmseg
-		public	errlrsp
-		public	errlnest
-		public	errltwo
-		public	errlargs
-		public	errlenv
-		public	errlout
-		public	errlwrt
-		public	errlover
-		public	errlmext
-		public	errlsflg
-		public	errlovlp
-		public	errlbig
-		public	errlydup
-		public	errlyunr
-		public	errlymix
+		public	error_cannot_open
+		public	error_not_object_file
+		public	error_wrong_version
+		public	error_truncated
+		public	error_unknown_option
+		public	error_out_of_memory
+		public	error_too_many_segments
+		public	error_cannot_open_list
+		public	error_nested_file_list
+		public	error_two_file_lists
+		public	error_too_many_words
+		public	error_env_too_long
+		public	error_cannot_create
+		public	error_cannot_write
+		public	error_output_is_input
+		public	error_too_many_externals
+		public	error_segment_differs
+		public	error_data_overlaps_code
+		public	error_image_too_big
+		public	error_duplicate_public
+		public	error_undefined_symbols
+		public	error_case_mismatch
 
 		include	lerrs.inc
-		include	msxdos.inc	; _STROUT, putsz, dosexit
-		include	lcmd.inc	; objname: errlopn names the file
-					;   it tried, which lcmext may have
-					;   given an extension. outname:
-					;   errlout and errlover name that
-					;   one for the same reason
-		include	arglist.inc	; argfn: errlrsp names the
-					;   response file it tried, the
-					;   way errlopn names the object
-		include	lobj.inc	; lobbuf, lobsln: errlsflg names
-					;   the segment, and the SEGDEF's
-					;   name is still in the record
-					;   buffer where lsgkey read it
+		include	msxdos.inc	; _STROUT, print_zero_string, dos_exit
+		include	lcmd.inc
+					; object_name: error_cannot_open
+					;   names the file it tried, which
+					;   add_object_extension may have
+					;   given an extension.
+					;   output_name: error_cannot_create
+					;   and error_output_is_input name
+					;   that one for the same reason
+		include	arglist.inc
+					; response_file_name:
+					;   error_cannot_open_list names
+					;   the response file it tried, the
+					;   way error_cannot_open names the
+					;   object
+		include	lobj.inc
+					; objfile_string_buffer,
+					;   objfile_string_length:
+					;   error_segment_differs names the
+					;   segment, and the SEGDEF's name
+					;   is still in the record buffer
+					;   where build_segment_key read it
 		include	ascii.inc	; CHR_CR, CHR_LF
 
 		cseg
 
-errlopn:	call	errlpfx		; THE NAME IT ACTUALLY TRIED, which
-		ld	de,msg_lopn
-		call	putsz		;   lcmext may have changed. Zero-
-		ld	de,objname	;   terminated, not "$": a filename
-		call	putszu		;   is interleaved with it and BDOS
-		ld	de,msg_lcrl	;   09h cannot help with that
-		call	putsz
-		jp	dosexit
-errlrsp:	call	errlpfx		; AND THIS ONE: a response file
-		ld	de,msg_lrsp
-		call	putsz		;   that will not open is almost
-		ld	de,argfn	;   always a name typed wrong
-		call	putszu
-		ld	de,msg_lcrl
-		call	putsz
-		jp	dosexit
-errlout:	call	errlpfx		; AND THIS NAME TOO: a path that
-		ld	de,msg_lout
-		call	putsz		;   does not exist is the likely
-		ld	de,outname	;   cause, and the name is the
-		call	putszu		;   clue
-		ld	de,msg_lcrl
-		call	putsz
-		jp	dosexit
-errlover:	call	errlpfx
-		ld	de,msg_lovr1
-		call	putsz
-		ld	de,outname
-		call	putszu
-		ld	de,msg_lovr2
-		call	putsz
-		jp	dosexit
+error_cannot_open:
+		; THE NAME IT ACTUALLY TRIED, which add_object_extension may
+		;   have changed. Zero-terminated, not "$": a filename is
+		;   interleaved with it and BDOS 09h cannot help with that
+		call	print_error_prefix
+		ld	de,msg_cannot_open
+		call	print_zero_string
+		ld	de,object_name
+		call	print_zero_string_upper
+		ld	de,msg_end_of_line
+		call	print_zero_string
+		jp	dos_exit
+error_cannot_open_list:
+		call	print_error_prefix	; AND THIS ONE: a response file
+		ld	de,msg_cannot_open_list
+		call	print_zero_string
+					;   that will not open is almost
+		ld	de,response_file_name	;   always a name typed wrong
+		call	print_zero_string_upper
+		ld	de,msg_end_of_line
+		call	print_zero_string
+		jp	dos_exit
+error_cannot_create:
+		; AND THIS NAME TOO: a path that does not exist is the likely
+		;   cause, and the name is the clue
+		call	print_error_prefix
+		ld	de,msg_cannot_create
+		call	print_zero_string
+		ld	de,output_name
+		call	print_zero_string_upper
+		ld	de,msg_end_of_line
+		call	print_zero_string
+		jp	dos_exit
+error_output_is_input:
+		call	print_error_prefix
+		ld	de,msg_output_file
+		call	print_zero_string
+		ld	de,output_name
+		call	print_zero_string_upper
+		ld	de,msg_is_also_input
+		call	print_zero_string
+		jp	dos_exit
 
-; errlfnm - "NAME: ", the object file being read.
+; print_file_prefix - "NAME: ", the object file being read.
 ;
 ;   THE NAME GOES IN FRONT, which is why this costs so little: the
 ;   messages keep their text and their $ terminator. It is also the
 ;   format the assembler uses - FILE(line): ERROR: - so one habit
 ;   reads both tools.
 ;
-; Input:	objname
+; Input:	object_name
 ; Output:	the name and a colon
 ; Modifies:	AF, BC, DE, HL
 
-errlfnm:	ld	de,objname	; UPPER CASE, like every other name
-		call	putszu		;   TANREN prints and like the source
+print_file_prefix:
+		ld	de,object_name	; UPPER CASE, like every other name
+		call	print_zero_string_upper
+					;   TANREN prints and like the source
 					;   file in the assembler's errors
-		ld	de,msg_lcol
-		jp	putsz
+		ld	de,msg_colon
+		jp	print_zero_string
 
-; errlfil - that prefix, then the ordinary error line. ONLY FOR THE
-;   ERRORS RAISED WHILE A FILE IS OPEN: objname holds the last name
+; die_naming_file - that prefix, then the ordinary error line. ONLY FOR THE
+;   ERRORS RAISED WHILE A FILE IS OPEN: object_name holds the last name
 ;   tried, and after the reading is done that is not the file at
 ;   fault.
 ;
 ; Input:	DE -> the $-terminated message
 ; Output:	does not return
 
-errlfil:	push	de
-		call	errlfnm
+die_naming_file:
+		push	de
+		call	print_file_prefix
 		pop	de
-		jp	errldie		; jp: errlsflg and errlnm went in
-					;   between, and errldie is 128 bytes
-					;   away - one past a jr's reach
+		; jp: error_segment_differs and print_counted_name went in
+		;   between, and die_with_message is 128 bytes away - one past
+		;   a jr's reach
+		jp	die_with_message
 
-errlmag:	ld	de,msg_lmag
-		jr	errlfil
-errlver:	ld	de,msg_lver
-		jr	errlfil
-errltrn:	ld	de,msg_ltrn
-		jr	errlfil
-errlunk:	ld	de,msg_lunk
-		jr	errldie
-errlheap:	ld	de,msg_lheap
-		jr	errldie
-errlenv:	ld	de,msg_lenv	; the TANREN variable is longer than
-		jr	errldie		;   LMAXENV, so _GENV has handed back a
-					;   truncated value with no terminator
-errlmseg:	ld	de,msg_lmseg
-		jr	errlfil		; one module's segments, and a
+error_not_object_file:
+		ld	de,msg_not_object_file
+		jr	die_naming_file
+error_wrong_version:
+		ld	de,msg_wrong_version
+		jr	die_naming_file
+error_truncated:
+		ld	de,msg_truncated
+		jr	die_naming_file
+error_unknown_option:
+		ld	de,msg_unknown_option
+		jr	die_with_message
+error_out_of_memory:
+		ld	de,msg_out_of_memory
+		jr	die_with_message
+error_env_too_long:
+		; the TANREN variable is longer than ENV_VALUE_MAX, so _GENV
+		;   has handed back a truncated value with no terminator
+		ld	de,msg_env_too_long
+		jr	die_with_message
+error_too_many_segments:
+		ld	de,msg_too_many_segments
+		jr	die_naming_file	; one module's segments, and a
 					;   module is a file
-errlwrt:	ld	de,msg_lwrt
-		jr	errldie
-errlnest:	ld	de,msg_lnest
-		jr	errldie
-errltwo:	ld	de,msg_ltwo
-		jr	errldie
-errlargs:	ld	de,msg_largs
-		jr	errldie
-errlmext:	ld	de,msg_lmext
-		jr	errldie
-errlbig:	ld	de,msg_lbig
-		jr	errldie
-errlovlp:	ld	de,msg_lovlp
-		jr	errldie
-errlydup:	ld	de,msg_lydup
-		jr	errldie
-errlyunr:	ld	de,msg_lyunr
-		jr	errldie
-errlymix:	ld	de,msg_lymix
-		jr	errldie
-; errlsflg - two files disagree about one segment, and the user needs
-;   to know about WHICH ONE. The name is still in lobbuf: lsgkey read
-;   it from there a few instructions ago. The record htfind found is
-;   no use for it - lspay points at the PAYLOAD, not at the record, so
-;   lsgnam cannot be aimed at it, and lseg.as is left alone.
+error_cannot_write:
+		ld	de,msg_cannot_write
+		jr	die_with_message
+error_nested_file_list:
+		ld	de,msg_nested_file_list
+		jr	die_with_message
+error_two_file_lists:
+		ld	de,msg_two_file_lists
+		jr	die_with_message
+error_too_many_words:
+		ld	de,msg_too_many_words
+		jr	die_with_message
+error_too_many_externals:
+		ld	de,msg_too_many_externals
+		jr	die_with_message
+error_image_too_big:
+		ld	de,msg_image_too_big
+		jr	die_with_message
+error_data_overlaps_code:
+		ld	de,msg_data_overlaps_code
+		jr	die_with_message
+error_duplicate_public:
+		ld	de,msg_duplicate_public
+		jr	die_with_message
+error_undefined_symbols:
+		ld	de,msg_undefined_symbols
+		jr	die_with_message
+error_case_mismatch:
+		ld	de,msg_case_mismatch
+		jr	die_with_message
+; error_segment_differs - two files disagree about one segment, and
+;   the user needs to know about WHICH ONE. The name is still in
+;   objfile_string_buffer: build_segment_key read it from there a few
+;   instructions ago. The record htfind found is no use for it -
+;   payload_pointer points at the PAYLOAD, not at the record, so
+;   print_record_name cannot be aimed at it, and lseg.as is left
+;   alone.
 ;
 ;   The OTHER module is not named. Nothing remembers it: see 096.
 
-errlsflg:	call	errlfnm
-		call	errlpfx
-		ld	de,msg_lsflg
-		call	putsz
-		call	errlnm
-		ld	de,msg_lsf2
-		call	putsz
-		jp	dosexit
+error_segment_differs:
+		call	print_file_prefix
+		call	print_error_prefix
+		ld	de,msg_segment
+		call	print_zero_string
+		call	print_counted_name
+		ld	de,msg_declared_differently
+		call	print_zero_string
+		jp	dos_exit
 
-; errlnm - lobsln bytes of lobbuf: a name as the FILE wrote it, which
-;   is counted and not terminated.
+; print_counted_name - objfile_string_length bytes of
+;   objfile_string_buffer: a name as the FILE wrote it, which is
+;   counted and not terminated.
 ;
-; Input:	lobbuf, lobsln
+; Input:	objfile_string_buffer, objfile_string_length
 ; Output:	the name is printed
 ; Modifies:	AF, BC, DE, HL
 
-errlnm:		ld	a,(lobsln)
+print_counted_name:
+		ld	a,(objfile_string_length)
 		or	a
 		ret	z		; no name: print nothing rather
 		ld	b,a		;   than 256 characters
-		ld	hl,lobbuf
-errln.lp:	push	bc
+		ld	hl,objfile_string_buffer
+print_counted_name.loop:
+		push	bc
 		push	hl
 		ld	e,(hl)
-		call	putch
+		call	print_char
 		pop	hl
 		pop	bc
 		inc	hl
-		djnz	errln.lp
+		djnz	print_counted_name.loop
 		ret
 
-; errldie - print the $-terminated message in DE and terminate.
+; die_with_message - print the $-terminated message in DE and terminate.
 ;
 ; Input:	DE -> the message
 ; Output:	does not return
 
-errldie:	push	de		; THE ONE COPY, for the sixteen
-		call	errlpfx		;   errors that come through here
+die_with_message:
+		; THE ONE COPY, for the sixteen errors that come through here
+		push	de
+		call	print_error_prefix
 		pop	de
-		call	putstr
-		jp	dosexit
+		call	print_dollar_string
+		jp	dos_exit
 
-; errlpfx - "ERROR: ", for the four that print a filename and so
-;   cannot come through errldie.
+; print_error_prefix - "ERROR: ", for the four that print a filename and so
+;   cannot come through die_with_message.
 ;
 ; Input:	nothing
 ; Output:	seven characters
 ; Modifies:	AF, BC, DE, HL
 
-errlpfx:	ld	de,msg_lerr
-		jp	putsz
+print_error_prefix:
+		ld	de,msg_error
+		jp	print_zero_string
 
 		dseg
 
-msg_lerr:	defb	"ERROR: ",0	; printed by errldie and errlpfx
-msg_lcol:	defb	": ",0		; and by errlfnm, after the name
-msg_lopn:	defb	"cannot open ",0
-msg_lcrl:	defb	CHR_CR,CHR_LF,0
-msg_lmag:	defb	"not a Tatara object file.",CHR_CR
+				; printed by die_with_message and
+				;   print_error_prefix
+msg_error:	defb	"ERROR: ",0
+msg_colon:	defb	": ",0	; and by print_file_prefix, after the name
+msg_cannot_open:
+		defb	"cannot open ",0
+msg_end_of_line:
+		defb	CHR_CR,CHR_LF,0
+msg_not_object_file:
+		defb	"not a Tatara object file.",CHR_CR
 		defb	CHR_LF,"$"
-msg_lver:	defb	"this object file was made by another"
+msg_wrong_version:
+		defb	"this object file was made by another"
 		defb	" version.",CHR_CR,CHR_LF,"$"
-msg_ltrn:	defb	"the object file ends inside a record."
+msg_truncated:	defb	"the object file ends inside a record."
 		defb	CHR_CR,CHR_LF,"$"
-msg_lunk:	defb	"unknown option.",CHR_CR,CHR_LF,"$"
-msg_lheap:	defb	"out of mapper memory.",CHR_CR
+msg_unknown_option:
+		defb	"unknown option.",CHR_CR,CHR_LF,"$"
+msg_out_of_memory:
+		defb	"out of mapper memory.",CHR_CR
 		defb	CHR_LF,"$"
-msg_lenv:	defb	"the TANREN variable is too long.",CHR_CR
+msg_env_too_long:
+		defb	"the TANREN variable is too long.",CHR_CR
 		defb	CHR_LF,"$"
-msg_lrsp:	defb	"cannot open the file list ",0
-msg_lnest:	defb	"a file list may not name another"
+msg_cannot_open_list:
+		defb	"cannot open the file list ",0
+msg_nested_file_list:
+		defb	"a file list may not name another"
 		defb	" one.",CHR_CR,CHR_LF,"$"
-msg_ltwo:	defb	"only one file list may be given.",CHR_CR
+msg_two_file_lists:
+		defb	"only one file list may be given.",CHR_CR
 		defb	CHR_LF,"$"
-msg_largs:	defb	"too many words on the command line"
+msg_too_many_words:
+		defb	"too many words on the command line"
 		defb	" or in the file list.",CHR_CR,CHR_LF,"$"
-msg_lout:	defb	"cannot create ",0
-msg_lovr1:	defb	"the output file ",0
-msg_lovr2:	defb	" is also an input file.",CHR_CR,CHR_LF,0
-msg_lwrt:	defb	"cannot write the output file - the"
+msg_cannot_create:
+		defb	"cannot create ",0
+msg_output_file:
+		defb	"the output file ",0
+msg_is_also_input:
+		defb	" is also an input file.",CHR_CR,CHR_LF,0
+msg_cannot_write:
+		defb	"cannot write the output file - the"
 		defb	" disk may be full.",CHR_CR,CHR_LF,"$"
-msg_lmext:	defb	"too many external symbols in one"
+msg_too_many_externals:
+		defb	"too many external symbols in one"
 		defb	" module.",CHR_CR,CHR_LF,"$"
-msg_lmseg:	defb	"too many segments or groups in one"
+msg_too_many_segments:
+		defb	"too many segments or groups in one"
 		defb	" module.",CHR_CR,CHR_LF,"$"
-msg_lsflg:	defb	"segment ",0	; errlnm puts the name between
-msg_lsf2:	defb	" is declared differently.",CHR_CR
-		defb	CHR_LF,0	;   these two. ZERO-TERMINATED,
-				;   both of them: errlsflg prints them
-				;   with putsz, because a name is
-				;   interleaved and BDOS 09h cannot
-				;   help with that
-msg_lovlp:	defb	"/D: would put the data on top of"
+				; print_counted_name puts the name
+				;   between these two.
+				;   ZERO-TERMINATED, both of them:
+				;   error_segment_differs prints
+				;   them with print_zero_string, because a name
+				;   is interleaved and BDOS 09h
+				;   cannot help with that
+msg_segment:	defb	"segment ",0
+msg_declared_differently:
+		defb	" is declared differently.",CHR_CR
+		defb	CHR_LF,0
+msg_data_overlaps_code:
+		defb	"/D: would put the data on top of"
 		defb	" the code.",CHR_CR,CHR_LF,"$"
-msg_lbig:	defb	"the linked image would run past"
+msg_image_too_big:
+		defb	"the linked image would run past"
 		defb	" FFFFh.",CHR_CR,CHR_LF,"$"
-msg_lydup:	defb	"that public symbol is already"
+msg_duplicate_public:
+		defb	"that public symbol is already"
 		defb	" defined.",CHR_CR,CHR_LF,"$"
-msg_lyunr:	defb	"the symbols above were never"
+msg_undefined_symbols:
+		defb	"the symbols above were never"
 		defb	" defined.",CHR_CR,CHR_LF,"$"
-msg_lymix:	defb	"one module was assembled /C and"
+msg_case_mismatch:
+		defb	"one module was assembled /C and"
 		defb	" another was not.",CHR_CR,CHR_LF,"$"
 

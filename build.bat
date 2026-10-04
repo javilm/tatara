@@ -46,3 +46,7 @@ tanren /o:build\tanren.com @tanren.lnk
 
 echo === Cleaning up
 del *.tro
+
+echo === Copying binaries to A:\TATARA\BIN\
+copy build\*.com a:\tatara\bin
+

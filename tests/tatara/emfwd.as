@@ -1,5 +1,5 @@
 ; THE TEST THAT PASS 1 DOES NOT EVALUATE. A forward reference in a DW
-; must survive pass 1, which can only happen if emitx leaves the text
+; must survive pass 1, which can only happen if emit_expr_byte leaves the text
 ; alone and emits a zero
 	aseg
 	org	0

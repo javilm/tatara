@@ -6,7 +6,7 @@
 ;
 ; and link the library after your program:  ld myprog=myprog,alloc
 
-	extrn	heapinit		; init mapper access + empty heap
+	extrn	heap_init		; init mapper access + empty heap
 					;   out: CY set = no mapper support
 	extrn	halloc			; allocate a block
 					;   in:  BC = payload bytes (1-16372)
@@ -17,12 +17,12 @@
 	extrn	deref			; make a far pointer addressable
 					;   in:  HL -> 4-byte far pointer
 					;   out: HL = address in page 2
-	extrn	p2restore		; hand page 2 back to MSX-DOS
+	extrn	page2_restore		; hand page 2 back to MSX-DOS
 					;   call before EVERY BDOS call and
 					;   before terminating!
-	extrn	maptot			; total mapper RAM
+	extrn	mapper_total		; total mapper RAM
 					;   out: HL = number of 16K segments
-	extrn	hblocks			; A WORD, not a routine: blocks handed
+	extrn	blocks_out		; A WORD, not a routine: blocks handed
 					;   out by halloc and not yet given back
 					;   to hfree. The library never reads it;
 					;   compare it across two runs that

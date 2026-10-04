@@ -2,24 +2,24 @@
 ;
 ; One state per open conditional, in a small stack. The rule that keeps
 ; it simple: an IF met while we are already skipping is pushed as
-; CS_DONE, so the innermost state alone answers "are we emitting?".
+; COND_DONE, so the innermost state alone answers "are we emitting?".
 ;
 ; Nothing here knows about macros, and macros know nothing about this.
-; While a definition is being COLLECTED, macdef (macros.as) has its own
-; loop and never calls cndline, so conditional directives in a body are
+; While a definition is being COLLECTED, collect_macro (macros.as) has its own
+; loop and never calls cond_line, so conditional directives in a body are
 ; stored as text and acted on when the macro expands. The two meet only
 ; in the driver, one line at a time.
 
-CNDLIB		equ	1		; skips the externals in cond.inc
+COND_INCLUDED	equ	1		; skips the externals in cond.inc
 
-		public	cndinit
-		public	cndline
-		public	cndeof
-		public	cndlab		; was the line just read being
-					;   assembled? main.loop asks after
-					;   cndline has returned, by which
-					;   time the state has changed
-		public	cnddep		; how many conditionals are open.
+		public	cond_init
+		public	cond_line
+		public	cond_eof
+		public	cond_label_assembled	; was the line just read being
+					;   assembled? main.next_line asks
+					;   after cond_line has returned, by
+					;   which time the state has changed
+		public	cond_depth	; how many conditionals are open.
 					;   expand.as reads it when an
 					;   expansion record is created and
 					;   writes it back on EXITM, which
@@ -36,34 +36,37 @@ CNDLIB		equ	1		; skips the externals in cond.inc
 		include	ascii.inc
 
 		include	errs.inc
-		include	srcline.inc	; curfile/curline: where the line just
-					;   handed over came from. cndpush
+		include	srcline.inc
+			; current_file/current_line: where the line just
+					;   handed over came from. cond_push
 					;   records them for the outermost open
-					;   conditional, so errncnd can name
-					;   the IF rather than the end of the
+					;   conditional, so
+					;   error_cond_not_closed can name the
+					;   IF rather than the end of the
 					;   source
 
 		cseg
 
-; cndinit - no conditionals open.
+; cond_init - no conditionals open.
 ;
 ;   Per PASS, not once-only: pass 2 re-reads the source and must start it
-;   with an empty stack. Called from main: beside macinit and mexinit.
+;   with an empty stack. Called from main: beside macro_table_init and
+;   expand_init.
 ;
 ; Input:	nothing
 ; Output:	the stack is empty
 ; Modifies:	AF
 
-cndinit:	xor	a
-		ld	(cnddep),a
+cond_init:	xor	a
+		ld	(cond_depth),a
 		ret
 
-; cndline - act on this line's conditional directive, if it has one, and
+; cond_line - act on this line's conditional directive, if it has one, and
 ;   say whether the line survives.
 ;
 ;   The whole IF..ENDIF family is numbered contiguously in dirtab.inc,
-;   D_IF to D_ENDIF, which is what makes the test at the top two
-;   compares instead of ten.
+;   DIRECTIVE_IF to DIRECTIVE_ENDIF, which is what makes the test at
+;   the top two compares instead of ten.
 ;
 ; Input:	A  = the directive number
 ;		IX -> the field block for this line
@@ -71,74 +74,80 @@ cndinit:	xor	a
 ;		CY clear = it goes on to the rest of the driver
 ; Modifies:	AF, BC, DE, HL, IX
 
-cndline:	cp	D_IF
-		jp	c,cndskip	; below the family: an ordinary line
-		cp	D_ENDIF+1
-		jp	nc,cndskip	; above it
-		cp	D_ELSE
-		jr	z,cndline.els
-		cp	D_ENDIF
-		jr	z,cndline.end
+cond_line:	cp	DIRECTIVE_IF
+		jp	c,cond_skipping	; below the family: an ordinary line
+		cp	DIRECTIVE_ENDIF+1
+		jp	nc,cond_skipping	; above it
+		cp	DIRECTIVE_ELSE
+		jr	z,cond_line.else_branch
+		cp	DIRECTIVE_ENDIF
+		jr	z,cond_line.done
 
 ; --- an opener. Note the order: whether we are ALREADY skipping is asked
 ;     first, because if we are, the condition must not be looked at.
 
-		ld	(cnddir),a	; cndtest needs to know which one
-		call	cndskip
-		ld	a,CS_DONE	; inside a false branch: neither
-		jr	c,cndline.psh	; branch of this one may be taken
-		call	cndtest		; CY clear = the condition is true
-		ld	a,CS_TAKE
-		jr	nc,cndline.psh
-		ld	a,CS_SKIP
-cndline.psh:	call	cndpush
+		ld	(cond_directive),a	; cond_true needs which one
+		call	cond_skipping
+		; inside a false branch: neither branch of this one may be
+		;   taken
+		ld	a,COND_DONE
+		jr	c,cond_line.push
+		call	cond_true	; CY clear = the condition is true
+		ld	a,COND_TAKE
+		jr	nc,cond_line.push
+		ld	a,COND_SKIP
+cond_line.push:	call	cond_push
 		scf			; the directive itself never survives
 		ret
 
 ; --- ELSE
 
-cndline.els:	ld	a,(cnddep)
+cond_line.else_branch:
+		ld	a,(cond_depth)
 		or	a
-		jp	z,errcond	; an ELSE with no IF open
-		call	cndskip		; BEFORE the state changes: an ELSE is
+		jp	z,error_cond_unmatched	; an ELSE with no IF open
+		call	cond_skipping	; BEFORE the state changes: an ELSE is
 					;   read while the branch ABOVE it is
 					;   still the current one, and M80
 					;   defines a label on it when THAT
 					;   branch was the one being assembled
-		call	cndtop
+		call	cond_top
 		bit	7,a
-		jp	nz,errcond	; M80 allows only one ELSE per IF
+		jp	nz,error_cond_unmatched
+					; M80 allows only one ELSE per IF
 		and	07fh
-		cp	CS_SKIP
-		ld	a,CS_DONE	; TAKE -> DONE, DONE -> DONE
-		jr	nz,cndline.el2
-		ld	a,CS_TAKE	; SKIP -> TAKE: this is the branch
-cndline.el2:	or	CS_ELSE		; and it has had its ELSE now
-		call	cndset
+		cp	COND_SKIP
+		ld	a,COND_DONE	; TAKE -> DONE, DONE -> DONE
+		jr	nz,cond_line.else_taken
+		ld	a,COND_TAKE	; SKIP -> TAKE: this is the branch
+cond_line.else_taken:
+		or	COND_ELSE_SEEN	; and it has had its ELSE now
+		call	cond_set_top
 		scf
 		ret
 
 ; --- ENDIF
 
-cndline.end:	ld	a,(cnddep)
+cond_line.done:	ld	a,(cond_depth)
 		or	a
-		jp	z,errcond	; an ENDIF with no IF open
-		call	cndskip		; BEFORE the level is closed: an ENDIF
-		ld	a,(cnddep)	;   that closes a SKIPPED branch names
-		dec	a		;   no place. cndskip clobbers A, so
-		ld	(cnddep),a	;   the depth is read again
+		jp	z,error_cond_unmatched	; an ENDIF with no IF open
+		call	cond_skipping	; BEFORE the level is closed: an ENDIF
+		ld	a,(cond_depth)	;   that closes a SKIPPED branch names
+		dec	a	;   no place. cond_skipping clobbers A, so
+		ld	(cond_depth),a	;   the depth is read again
 		scf
 		ret
 
-; cndskip - are we inside a branch that is not being taken?
+; cond_skipping - are we inside a branch that is not being taken?
 ;
 ;   Only the innermost state is looked at. See the note at the top of the
 ;   file for why that is enough.
 ;
-;   IT ALSO WRITES cndlab, which is the same answer kept for main.loop.
+;   IT ALSO WRITES cond_label_assembled, which is the same answer
+;   kept for main.next_line.
 ;   A label on a line that emits nothing takes the location counter if
 ;   that line is being assembled - M80 does it for the whole IF family,
-;   for REPT, IRP and IRPC, and for END - and by the time cndline
+;   for REPT, IRP and IRPC, and for END - and by the time cond_line
 ;   returns, the state it was decided by has already changed. Recording
 ;   it here costs nine bytes and covers every caller: the opener path
 ;   was already calling this routine before it pushed, and ELSE and
@@ -146,235 +155,250 @@ cndline.end:	ld	a,(cnddep)
 ;
 ; Input:	nothing
 ; Output:	CY set = skipping
-;		(cndlab) = 0FFh emitting, 0 skipping
+;		(cond_label_assembled) = 0FFh emitting, 0 skipping
 ; Modifies:	AF, DE, HL
 
-cndskip:	ld	a,0ffh		; ASSUME EMITTING, and say so first:
-		ld	(cndlab),a	;   the two exits below that mean
-					;   emitting are the common ones, and
-					;   neither has to repeat it
-		ld	a,(cnddep)
+		;   ASSUME EMITTING, and say so first: the two exits below that
+		;   mean emitting are the common ones, and neither has to
+		;   repeat
+		;   it
+cond_skipping:	ld	a,0ffh
+		ld	(cond_label_assembled),a
+		ld	a,(cond_depth)
 		or	a
 		ret	z		; nothing open: emitting, CY clear
-		call	cndtop
+		call	cond_top
 		and	07fh		; the ELSE-seen bit is not a state,
-		ret	z		; and CS_TAKE is 0, so this clears CY
-		xor	a		; skipping: and no label on this line
-		ld	(cndlab),a	;   either. xor a CLEARS CY, which is
-		scf			;   why the scf comes after it and not
-		ret			;   before
+		ret	z		; and COND_TAKE is 0, so this clears CY
+		; skipping: and no label on this line either. xor a CLEARS CY,
+		;   which is why the scf comes after it and not before
+		xor	a
+		ld	(cond_label_assembled),a
+		scf
+		ret
 
-; cndtop - the innermost open conditional's state byte.
+; cond_top - the innermost open conditional's state byte.
 ;
-; Input:	cnddep > 0
+; Input:	cond_depth > 0
 ; Output:	A = the state, HL -> where it lives
 ; Modifies:	AF, DE, HL
 
-cndtop:		ld	a,(cnddep)
+cond_top:	ld	a,(cond_depth)
 		dec	a
 		ld	l,a
 		ld	h,0
-		ld	de,cndstk
+		ld	de,cond_stack
 		add	hl,de
 		ld	a,(hl)
 		ret
 
-; cndset - replace the innermost state with A.
+; cond_set_top - replace the innermost state with A.
 ;
-; Input:	A = the new state, cnddep > 0
+; Input:	A = the new state, cond_depth > 0
 ; Output:	stored
 ; Modifies:	AF, DE, HL
 
-cndset:		push	af
-		call	cndtop
+cond_set_top:	push	af
+		call	cond_top
 		pop	af
 		ld	(hl),a
 		ret
 
-; cndpush - open a conditional with state A.
+; cond_push - open a conditional with state A.
 ;
 ; Input:	A = the state
 ; Output:	pushed
-;		(too deep does not return - errcdep stops)
+;		(too deep does not return - error_cond_too_deep stops)
 ; Modifies:	AF, BC, DE, HL
 
-cndpush:	ld	c,a
-		ld	a,(cnddep)
-		cp	MAXCND
-		jp	nc,errcdep
+cond_push:	ld	c,a
+		ld	a,(cond_depth)
+		cp	COND_MAX_DEPTH
+		jp	nc,error_cond_too_deep
 		or	a		; pushing level 0? Then this is the
-		jr	nz,cndpush.go	; outermost conditional now open, and
-		ld	a,(curfile)	; the one errncnd should point at if the
-		ld	(cn0fil),a	; source ends with it still open. A
-		ld	hl,(curline)	; matched pair at level 0 just
-		ld	(cn0lin),hl	; overwrites it with the one that
+		jr	nz,cond_push.store	; outermost conditional now
+		ld	a,(current_file)
+			; open, and the one error_cond_not_closed points
+		ld	(outer_file),a	; source ends with it still open. A
+		ld	hl,(current_line)	; matched pair at level 0 just
+		ld	(outer_line),hl	; overwrites it with the one that
 					; matters
 		xor	a
-cndpush.go:	inc	a
-		ld	(cnddep),a
+cond_push.store:
+		inc	a
+		ld	(cond_depth),a
 		ld	a,c
-		jp	cndset
+		jp	cond_set_top
 
-; cndeof - the end of the source. Nothing may still be open.
+; cond_eof - the end of the source. Nothing may still be open.
 ;
 ; Input:	nothing
 ; Output:	returns only if the stack is empty
-;		(an unclosed conditional does not return - errncnd stops)
+;		(an unclosed conditional does not return -
+;		error_cond_not_closed stops)
 ; Modifies:	AF
 
-cndeof:		ld	a,(cnddep)
+cond_eof:	ld	a,(cond_depth)
 		or	a
 		ret	z
-		ld	a,(cn0fil)	; the outermost one still open, not the
-		ld	hl,(cn0lin)	; end of the source
-		jp	errncnd
+		ld	a,(outer_file)	; the outermost one still open, not the
+		ld	hl,(outer_line)	; end of the source
+		jp	error_cond_not_closed
 
 ; --- the conditions themselves
 
-; cndtest - is this conditional's condition true?
+; cond_true - is this conditional's condition true?
 ;
 ;   IFB, IFNB, IFIDN and IFDIF are text tests and need nothing but the
-;   operand. IF and IFE go through evalexp (expr.as); IFDEF and IFNDEF
+;   operand. IF and IFE go through eval_expression (expr.as); IFDEF and IFNDEF
 ;   go straight to the symbol look-up, because for them "not found" is
 ;   an answer and not an error.
 ;
-; Input:	cnddir = the directive number, IX -> the field block
+; Input:	cond_directive = the directive number, IX -> the field block
 ; Output:	CY clear = true, CY set = false
 ; Modifies:	AF, BC, DE, HL, IX
 
-cndtest:	ld	a,(cnddir)
-		cp	D_IFB
-		jr	z,cndtest.b
-		cp	D_IFNB
-		jr	z,cndtest.nb
-		cp	D_IFIDN
-		jr	z,cndtest.id
-		cp	D_IFDIF
-		jr	z,cndtest.df
-		cp	D_IFDEF
-		jp	z,cndtest.df1
-		cp	D_IFNDEF
-		jp	z,cndtest.nd
-		cp	D_IF
-		jp	z,cndtest.if
-		cp	D_IFE
-		jp	z,cndtest.ife
-		cp	D_IF1
-		jr	z,cndtest.p1
-		cp	D_IF2
-		jr	z,cndtest.p2
+cond_true:	ld	a,(cond_directive)
+		cp	DIRECTIVE_IFB
+		jr	z,cond_true.ifb
+		cp	DIRECTIVE_IFNB
+		jr	z,cond_true.ifnb
+		cp	DIRECTIVE_IFIDN
+		jr	z,cond_true.ifidn
+		cp	DIRECTIVE_IFDIF
+		jr	z,cond_true.ifdif
+		cp	DIRECTIVE_IFDEF
+		jp	z,cond_true.ifdef
+		cp	DIRECTIVE_IFNDEF
+		jp	z,cond_true.ifndef
+		cp	DIRECTIVE_IF
+		jp	z,cond_true.if_expr
+		cp	DIRECTIVE_IFE
+		jp	z,cond_true.ife_expr
+		cp	DIRECTIVE_IF1
+		jr	z,cond_true.if1
+		cp	DIRECTIVE_IF2
+		jr	z,cond_true.if2
 		or	a
 		ret
 
 ; IF1 and IF2 ask which reading of the source this is. There was once
 ; was only one, and they were hardwired true and false.
 
-cndtest.p1:	ld	a,(passno)
+cond_true.if1:	ld	a,(pass_number)
 		dec	a
-		jr	z,cndtest.t	; pass 1: IF1 is true
-		jr	cndtest.f
-cndtest.p2:	ld	a,(passno)
+		jr	z,cond_true.true	; pass 1: IF1 is true
+		jr	cond_true.false
+cond_true.if2:	ld	a,(pass_number)
 		dec	a
-		jr	z,cndtest.f	; pass 1: IF2 is false
-		jr	cndtest.t
+		jr	z,cond_true.false	; pass 1: IF2 is false
+		jr	cond_true.true
 
-cndtest.f:	scf
+cond_true.false:
+		scf
 		ret
-cndtest.t:	or	a
+cond_true.true:	or	a
 		ret
 
-cndtest.b:	xor	a		; IFB: argument 0 is empty
-		call	cndarg
+cond_true.ifb:	xor	a		; IFB: argument 0 is empty
+		call	find_argument
 		or	a
 		ret	z		; blank: true, and or a clears CY
 		scf
 		ret
 
-cndtest.nb:	xor	a		; IFNB: it is not
-		call	cndarg
+cond_true.ifnb:	xor	a		; IFNB: it is not
+		call	find_argument
 		or	a
 		scf
 		ret	z		; blank: false
 		or	a
 		ret
 
-cndtest.id:	call	cndcmp		; IFIDN: Z set = the same
-		jr	z,cndtest.t
+cond_true.ifidn:
+		call	args_are_same	; IFIDN: Z set = the same
+		jr	z,cond_true.true
 		scf
 		ret
 
-cndtest.df:	call	cndcmp		; IFDIF
-		jr	nz,cndtest.t
+cond_true.ifdif:
+		call	args_are_same	; IFDIF
+		jr	nz,cond_true.true
 		scf
 		ret
 
 ; --- IF and IFE: the operand is an expression, and a non-zero value is
 ;     true. It must be known already - an unknown name stops the
-;     assembly inside evalexp - but it may be relocatable: zero or not
+;     assembly inside eval_expression - but it may be relocatable: zero or not
 ;     is all that is asked of it.
 
-cndtest.if:	call	cndval
+cond_true.if_expr:
+		call	operand_value
 		ld	a,h
 		or	l
-		jp	nz,cndtest.t
+		jp	nz,cond_true.true
 		scf
 		ret
 
-cndtest.ife:	call	cndval
+cond_true.ife_expr:
+		call	operand_value
 		ld	a,h
 		or	l
-		jp	z,cndtest.t
+		jp	z,cond_true.true
 		scf
 		ret
 
-cndval:		ld	e,(ix+FL_ARG)
-		ld	d,(ix+FL_ARG+1)
-		ld	a,(ix+FL_ARGL)
-		jp	evalexp		; HL = the value
+operand_value:	ld	e,(ix+FIELD_OPERAND)
+		ld	d,(ix+FIELD_OPERAND+1)
+		ld	a,(ix+FIELD_OPERAND_LENGTH)
+		jp	eval_expression	; HL = the value
 
 ; --- IFDEF and IFNDEF: the same look-up the evaluator uses, but here
 ;     "not found" is the answer rather than an error. That is the
 ;     manual's own distinction, and it is why these two do not go
-;     through evalexp.
+;     through eval_expression.
 
-cndtest.df1:	call	cnddef		; CY clear = the symbol exists
-		jp	nc,cndtest.t
+cond_true.ifdef:
+		call	symbol_is_defined	; CY clear = the symbol exists
+		jp	nc,cond_true.true
 		scf
 		ret
 
-cndtest.nd:	call	cnddef
-		jp	c,cndtest.t
+cond_true.ifndef:
+		call	symbol_is_defined
+		jp	c,cond_true.true
 		scf
 		ret
 
-; cnddef - does the operand name a symbol that is defined?
+; symbol_is_defined - does the operand name a symbol that is defined?
 ;
-;   exlook is a variable holding a routine's ADDRESS. The push/ex/ret
+;   symbol_lookup is a variable holding a routine's ADDRESS. The push/ex/ret
 ;   below is the Z80's way of calling through one: the target's own ret
-;   comes back to cnddef's caller.
+;   comes back to symbol_is_defined's caller.
 ;
 ; Input:	IX -> the field block
 ; Output:	CY set = no such symbol
 ; Modifies:	AF, BC, DE, HL, IX
 
-cnddef:		ld	e,(ix+FL_ARG)
-		ld	d,(ix+FL_ARG+1)
-		ld	a,(ix+FL_ARGL)
+symbol_is_defined:
+		ld	e,(ix+FIELD_OPERAND)
+		ld	d,(ix+FIELD_OPERAND+1)
+		ld	a,(ix+FIELD_OPERAND_LENGTH)
 		ld	b,a
 		or	a
 		scf
 		ret	z		; no operand at all: not defined
 		push	hl
-		ld	hl,(exlook)
+		ld	hl,(symbol_lookup)
 		ex	(sp),hl
 		ret
 
-; cndcmp - are arguments 0 and 1 the same text?
+; args_are_same - are arguments 0 and 1 the same text?
 ;
 ;   EXACTLY THE SAME TEXT, case included. M80 compares these byte for
 ;   byte - IFCASE.AS, cross-checked in m80ref - and it is not simply
 ;   upper-casing the source on the way in: a macro's dummy parameter IS
-;   matched ignoring case in the same assembler (PCASE.AS, and mdplook
+;   matched ignoring case in the same assembler (PCASE.AS, and find_pool_name
 ;   in macros.as does the same). A NAME is matched ignoring case; IFIDN
 ;   and IFDIF compare TEXT, and text is compared exactly.
 ;
@@ -384,42 +408,43 @@ cnddef:		ld	e,(ix+FL_ARG)
 ;
 ;   Argument 0 has to be copied out of the way first - only its address
 ;   and length, not its text - because finding argument 1 overwrites
-;   where cndarg keeps its answer.
+;   where find_argument keeps its answer.
 ;
 ; Input:	IX -> the field block
 ; Output:	Z set = identical
 ; Modifies:	AF, C, DE, HL
 
-cndcmp:		xor	a
-		call	cndarg
-		ld	(cnaptr),de
-		ld	(cnalen0),a
+args_are_same:	xor	a
+		call	find_argument
+		ld	(arg0_text),de
+		ld	(arg0_length),a
 		ld	a,1
-		call	cndarg		; DE -> argument 1, A = its length
-		ld	hl,cnalen0
+		call	find_argument	; DE -> argument 1, A = its length
+		ld	hl,arg0_length
 		cp	(hl)
 		ret	nz		; different lengths: different
 		or	a
 		ret	z		; both empty: the same
 		ld	c,a		; C = characters to compare
-		ld	hl,(cnaptr)
-cndcmp.ch:	ld	a,(de)
+		ld	hl,(arg0_text)
+args_are_same.compare:
+		ld	a,(de)
 		cp	(hl)		; the bytes, as they were written. B
 		ret	nz		;   held the folded copy and is now
 					;   not touched at all
 		inc	hl
 		inc	de
 		dec	c
-		jr	nz,cndcmp.ch
+		jr	nz,args_are_same.compare
 		ret			; C reached 0, so Z is set
 
-; cndarg - find argument number A in the operand, with one level of
+; find_argument - find argument number A in the operand, with one level of
 ;   angle brackets taken off.
 ;
-;   The same grammar mxargs (expand.as) reads, without the "!" escape and
+;   The same grammar build_args (expand.as) reads, without the "!" escape and
 ;   without copying anything: the text stays in the line buffer and this
 ;   points at it. IRP wants the same routine, which is why it
-;   is written to take an index rather than being folded into cndtest.
+;   is written to take an index rather than being folded into cond_true.
 ;
 ; Input:	A   = which argument, 0-based
 ;		IX -> the field block
@@ -427,98 +452,111 @@ cndcmp.ch:	ld	a,(de)
 ;		such argument, or it is empty
 ; Modifies:	AF, BC, DE, HL
 
-cndarg:		ld	(cnaidx),a
-		ld	b,(ix+FL_ARGL)	; B = characters left in the operand
-		ld	l,(ix+FL_ARG)
-		ld	h,(ix+FL_ARG+1)
+find_argument:	ld	(arg_wanted),a
+		; B = characters left in the operand
+		ld	b,(ix+FIELD_OPERAND_LENGTH)
+		ld	l,(ix+FIELD_OPERAND)
+		ld	h,(ix+FIELD_OPERAND+1)
 
-cndarg.lp:	call	cndarg1		; one argument -> cnastr, cnalen
-		ld	a,(cnaidx)
+find_argument.loop:
+		call	step_argument	; one argument -> arg_text, arg_length
+		ld	a,(arg_wanted)
 		or	a
-		jr	z,cndarg.got	; that was the one asked for
+		jr	z,find_argument.found	; that was the one asked for
 		dec	a
-		ld	(cnaidx),a
+		ld	(arg_wanted),a
 		ld	a,b
 		or	a
-		jr	nz,cndarg.lp
+		jr	nz,find_argument.loop
 		xor	a		; the operand ran out first: treat the
-		ld	(cnalen),a	; missing argument as empty
-cndarg.got:	ld	de,(cnastr)
-		ld	a,(cnalen)
+		ld	(arg_length),a	; missing argument as empty
+find_argument.found:
+		ld	de,(arg_text)
+		ld	a,(arg_length)
 		ret
 
-; cndarg1 - step over one argument, noting where its text is and how long
+; step_argument - step over one argument, noting where its text is and how long
 ;   it is. HL and B are left past its comma.
 ;
 ; Input:	HL -> the operand, B = characters left
-; Output:	cnastr, cnalen; HL and B advanced
+; Output:	arg_text, arg_length; HL and B advanced
 ; Modifies:	AF, B, C, DE, HL
 
-cndarg1:	call	cndaws		; blanks before it are not part of it
-		ld	(cnastr),hl
+step_argument:	call	skip_arg_blanks	; blanks before it are not part of it
+		ld	(arg_text),hl
 		ld	c,0		; C = characters in it
 		ld	a,b
 		or	a
-		jr	z,cndarg1.end	; nothing left
+		jr	z,step_argument.done	; nothing left
 		ld	a,(hl)
 		cp	"<"
-		jr	z,cndarg1.br
+		jr	z,step_argument.bracketed
 
 ; --- unbracketed: everything up to the next comma
 
-cndarg1.pl:	ld	a,b
+step_argument.plain:
+		ld	a,b
 		or	a
-		jr	z,cndarg1.end
+		jr	z,step_argument.done
 		ld	a,(hl)
 		cp	","
-		jr	z,cndarg1.cm
+		jr	z,step_argument.comma
 		inc	hl
 		dec	b
 		inc	c
-		jr	cndarg1.pl
+		jr	step_argument.plain
 
-cndarg1.cm:	inc	hl		; step over the comma
+step_argument.comma:
+		inc	hl		; step over the comma
 		dec	b
-		jr	cndarg1.end
+		jr	step_argument.done
 
 ; --- <bracketed>: one level comes off, inner ones stay
 
-cndarg1.br:	inc	hl		; over the "<"
+step_argument.bracketed:
+		inc	hl		; over the "<"
 		dec	b
-		ld	(cnastr),hl	; the text starts after it
+		ld	(arg_text),hl	; the text starts after it
 		ld	d,1		; D = how deep in brackets we are
-cndarg1.b1:	ld	a,b
+step_argument.bracket_scan:
+		ld	a,b
 		or	a
-		jr	z,cndarg1.end	; unterminated: the line closes it
+		; unterminated: the line closes it
+		jr	z,step_argument.done
 		ld	a,(hl)
 		cp	"<"
-		jr	nz,cndarg1.b2
+		jr	nz,step_argument.bracket_close
 		inc	d
-		jr	cndarg1.b3
-cndarg1.b2:	cp	">"
-		jr	nz,cndarg1.b3
+		jr	step_argument.bracket_take
+step_argument.bracket_close:
+		cp	">"
+		jr	nz,step_argument.bracket_take
 		dec	d
-		jr	z,cndarg1.bx	; the matching one: this is the end
-cndarg1.b3:	inc	hl
+		; the matching one: this is the end
+		jr	z,step_argument.bracket_done
+step_argument.bracket_take:
+		inc	hl
 		dec	b
 		inc	c
-		jr	cndarg1.b1
-cndarg1.bx:	inc	hl		; over the ">"
+		jr	step_argument.bracket_scan
+step_argument.bracket_done:
+		inc	hl		; over the ">"
 		dec	b
-		call	cndacm		; anything before the comma is not
+		call	skip_to_comma	; anything before the comma is not
 					; part of anything
 
-cndarg1.end:	ld	a,c
-		ld	(cnalen),a
+step_argument.done:
+		ld	a,c
+		ld	(arg_length),a
 		ret
 
-; cndacm - throw away everything up to and including the next comma.
+; skip_to_comma - throw away everything up to and including the next comma.
 ;
 ; Input:	HL -> the operand, B = characters left
 ; Output:	HL and B past it
 ; Modifies:	AF, B, HL
 
-cndacm:		ld	a,b
+skip_to_comma:	ld	a,b
 		or	a
 		ret	z
 		ld	a,(hl)
@@ -526,41 +564,45 @@ cndacm:		ld	a,b
 		dec	b
 		cp	","
 		ret	z
-		jr	cndacm
+		jr	skip_to_comma
 
-; cndaws - step over spaces and tabs.
+; skip_arg_blanks - step over spaces and tabs.
 ;
 ; Input:	HL -> the operand, B = characters left
 ; Output:	HL and B past any run of them
 ; Modifies:	AF, B, HL
 
-cndaws:		ld	a,b
+skip_arg_blanks:
+		ld	a,b
 		or	a
 		ret	z
 		ld	a,(hl)
 		cp	CHR_SPACE
-		jr	z,cndaws.s
+		jr	z,skip_arg_blanks.step
 		cp	CHR_TAB
 		ret	nz
-cndaws.s:	inc	hl
+skip_arg_blanks.step:
+		inc	hl
 		dec	b
-		jr	cndaws
+		jr	skip_arg_blanks
 
 		dseg
 
-cnddep:		defs	1		; how many conditionals are open
-cndlab:		defs	1		; cndskip's answer, kept for main.loop:
+cond_depth:	defs	1		; how many conditionals are open
+cond_label_assembled:
+		defs	1
+			; cond_skipping's answer, kept for main.next_line:
 					;   0FFh = the line just read was being
 					;   assembled, so a label on it is
 					;   defined
-cndstk:		defs	MAXCND		; one state byte each
-cnddir:		defs	1		; the opener cndtest is working on
-cn0fil:		defs	1		; cndpush: where the outermost open
-cn0lin:		defs	2		;   conditional is, for errncnd
+cond_stack:	defs	COND_MAX_DEPTH	; one state byte each
+cond_directive:	defs	1		; the opener cond_true is working on
+outer_file:	defs	1		; cond_push: where the outermost open
+outer_line:	defs	2	;   conditional is, for error_cond_not_closed
 
-cnastr:		defs	2		; cndarg: where the argument's text is
-cnalen:		defs	1		; cndarg: how long it is
-cnaidx:		defs	1		; cndarg: which one is wanted
-cnaptr:		defs	2		; cndcmp: argument 0's text
-cnalen0:	defs	1		; cndcmp: and its length
+arg_text:	defs	2	; find_argument: where the argument's text is
+arg_length:	defs	1		; find_argument: how long it is
+arg_wanted:	defs	1		; find_argument: which one is wanted
+arg0_text:	defs	2		; args_are_same: argument 0's text
+arg0_length:	defs	1		; args_are_same: and its length
 

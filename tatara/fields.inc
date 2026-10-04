@@ -2,11 +2,11 @@
 ; label / operation / operand / comment.
 ;
 ; fields.as includes this file too, for the shared equates: it defines
-; FLDLIB first, which skips the external declarations below - a symbo
+; FIELDS_INCLUDED first, which skips the external declarations below - a symbo
 ; cannot be declared external in the module that defines it as global.
 
-		ifndef	FLDLIB
-		extrn splitln		; cut one line into its four fields
+		ifndef	FIELDS_INCLUDED
+		extrn split_line	; cut one line into its four fields
 					; in: HL -> the line, ASCIIZ
 					;     IX -> a field block to fill
 		endif
@@ -17,16 +17,16 @@
 ;     hold it, and it stops being true the moment the caller reads the
 ;     next line.
 ;
-;     One byte is enough for every length because MAXLINE is 255.
+;     One byte is enough for every length because LINE_MAX is 255.
 
-FL_LAB		equ	0		; +0 label:     address
-FL_LABL		equ	2		; +2            length
-FL_OP		equ	3		; +3 operation: address
-FL_OPL		equ	5		; +5            length
-FL_ARG		equ	6		; +6 operand:   address
-FL_ARGL		equ	8		; +8            length
-FL_CMT		equ	9		; +9 comment:   address, ";" included
-FL_CMTL		equ	11		; +11           length
-FLSIZE		equ	12		; size of one field block
+FIELD_LABEL	equ	0		; +0 label:     address
+FIELD_LABEL_LENGTH	equ	2	; +2            length
+FIELD_OPERATION	equ	3		; +3 operation: address
+FIELD_OPERATION_LENGTH	equ	5	; +5            length
+FIELD_OPERAND	equ	6		; +6 operand:   address
+FIELD_OPERAND_LENGTH	equ	8	; +8            length
+FIELD_COMMENT	equ	9		; +9 comment:   address, ";" included
+FIELD_COMMENT_LENGTH	equ	11	; +11           length
+FIELD_BLOCK_SIZE	equ	12	; size of one field block
 
 

@@ -18,37 +18,41 @@
 ; and this module would serve cmdline.as unchanged on the day the
 ; assembler wants it.
 
-ARGLIB		equ	1	; skips the externals in arglist.inc
+ARGLIST_INCLUDED	equ	1	; skips the externals in arglist.inc
 
-		public	argtail
-		public	argfile
-		public	argadd
-		public	argfrst
-		public	argnext
-		public	argn
-		public	argcut
-		public	argfn
-		public	argrdir
-		public	argfrf
+		public	split_command_tail
+		public	read_response_file
+		public	arglist_add
+		public	arglist_first
+		public	arglist_next
+		public	arglist_count
+		public	tail_truncated
+		public	response_file_name
+		public	response_file_directory
+		public	word_from_file
 
 		include	arglist.inc
-		include	lerrs.inc	; errlheap, errlargs, errlrsp,
-					;   errlnest, errltwo
+		include	lerrs.inc
+					; error_out_of_memory,
+					;   error_too_many_words,
+					;   error_cannot_open_list,
+					;   error_nested_file_list,
+					;   error_two_file_lists
 		include	alloc.inc	; halloc, deref
 		include	farptr.inc	; derefp
-		include	strutil.inc	; strext
+		include	strutil.inc	; add_default_extension
 		include	msxdos.inc	; _OPEN, _READ, _CLOSE
 
-TAILLEN		equ	00080h		; command tail: the length byte
-TAILTXT		equ	00081h		; command tail: the text
-TAILMAX		equ	127		; and all of it there can ever be.
+TAIL_LENGTH	equ	00080h		; command tail: the length byte
+TAIL_TEXT	equ	00081h		; command tail: the text
+TAIL_MAX	equ	127		; and all of it there can ever be.
 					; MSX-DOS cuts a longer line HERE,
 					; in silence, which is what [R10]
 					; exists to answer
 
 		cseg
 
-; argtail - the command tail, as words.
+; split_command_tail - the command tail, as words.
 ;
 ;   ONE PASS, ONE CHARACTER AT A TIME. A space or a tab ends the word
 ;   being built and anything else belongs to it, so the word
@@ -59,196 +63,212 @@ TAILMAX		equ	127		; and all of it there can ever be.
 ;		(the four errors do not return)
 ; Modifies:	everything
 
-argtail:	call	arginit
+split_command_tail:
+		call	arglist_init
 		xor	a
-		ld	(argnest),a
-		ld	(argwn),a
-		ld	(argcut),a
-		ld	a,(TAILLEN)
-		cp	TAILMAX
-		jr	c,argt.go
-		ld	a,0ffh		; AT THE LIMIT, so it may have been
-		ld	(argcut),a	;   cut. lcmwarn says so
-argt.go:	ld	hl,TAILTXT
-		ld	a,(TAILLEN)
+		ld	(response_file_open),a
+		ld	(word_length),a
+		ld	(tail_truncated),a
+		ld	a,(TAIL_LENGTH)
+		cp	TAIL_MAX
+		jr	c,split_command_tail.word
+		; AT THE LIMIT, so it may have been cut.
+		;   print_truncation_warning says so
+		ld	a,0ffh
+		ld	(tail_truncated),a
+split_command_tail.word:
+		ld	hl,TAIL_TEXT
+		ld	a,(TAIL_LENGTH)
 		ld	b,a
-argt.lp:	ld	a,b
+split_command_tail.loop:
+		ld	a,b
 		or	a
-		jp	z,argwend	; the tail does not end with a
+		jp	z,word_finish	; the tail does not end with a
 		ld	a,(hl)		;   space, so the last word has to
 		inc	hl		;   be finished here
 		dec	b
 		cp	" "
-		jr	z,argt.sp
+		jr	z,split_command_tail.space
 		cp	009h
-		jr	z,argt.sp
+		jr	z,split_command_tail.space
 		push	hl
 		push	bc
-		call	argwput
+		call	word_add_char
 		pop	bc
 		pop	hl
-		jr	argt.lp
-argt.sp:	push	hl
+		jr	split_command_tail.loop
+split_command_tail.space:
+		push	hl
 		push	bc
-		call	argwend
+		call	word_finish
 		pop	bc
 		pop	hl
-		jr	argt.lp
+		jr	split_command_tail.loop
 
-; arginit - the block the words live in.
+; arglist_init - the block the words live in.
 ;
 ; Input:	nothing
-; Output:	an empty list (errlheap does not return)
+; Output:	an empty list (error_out_of_memory does not return)
 ; Modifies:	AF, BC, DE, HL
 
-arginit:	ld	bc,ARGSIZE
-		ld	hl,argptr
+arglist_init:	ld	bc,ARGLIST_BLOCK_SIZE
+		ld	hl,list_block
 		call	halloc
-		jp	c,errlheap
+		jp	c,error_out_of_memory
 		ld	hl,0
-		ld	(argused),hl
-		ld	(argn),hl
-		ld	(argpos),hl
-		ld	(argrf),hl	; no response file has been read, and
-		ld	(argrt),hl	;   an empty range answers "no" to
-		xor	a		;   every word - see argfrom
-		ld	(argfrf),a
-		ld	(argrdir),a
+		ld	(list_used),hl
+		ld	(arglist_count),hl
+		ld	(walk_offset),hl
+		; no response file has been read, and an empty range answers
+		;   "no" to every word - see word_came_from_file
+		ld	(response_first),hl
+		ld	(response_last),hl
+		xor	a
+		ld	(word_from_file),a
+		ld	(response_file_directory),a
 		ret
 
-; argwput - one character onto the word being built.
+; word_add_char - one character onto the word being built.
 ;
 ; Input:	A = the character
-; Output:	it is in argw (errlargs does not return)
+; Output:	it is in word_buffer (error_too_many_words does not return)
 ; Modifies:	AF, BC, DE, HL
 
-argwput:	ld	c,a		; THE CHARACTER, AND NOT IN E: argw's
-		ld	a,(argwn)	;   address is about to go into DE,
-		cp	ARGMAX-1	;   and E with it
-		jp	nc,errlargs	; a word longer than a path can be
-		ld	hl,argw
+word_add_char:	ld	c,a	; THE CHARACTER, AND NOT IN E: word_buffer's
+		ld	a,(word_length)	;   address is about to go into DE,
+		cp	ARGLIST_WORD_MAX-1	;   and E with it
+		; a word longer than a path can be
+		jp	nc,error_too_many_words
+		ld	hl,word_buffer
 		ld	e,a
 		ld	d,0
 		add	hl,de
 		ld	(hl),c
-		inc	a		; A is still argwn
-		ld	(argwn),a
+		inc	a		; A is still word_length
+		ld	(word_length),a
 		ret
 
-; argwend - the word being built is finished.
+; word_finish - the word being built is finished.
 ;
-;   IT FORGETS THE WORD BEFORE HANDING IT OVER, because argwrd may
+;   IT FORGETS THE WORD BEFORE HANDING IT OVER, because word_store may
 ;   open a response file and that file's words are built in this same
-;   buffer. argwrd has taken what it needs by then.
+;   buffer. word_store has taken what it needs by then.
 ;
-; Input:	argw, argwn
+; Input:	word_buffer, word_length
 ; Output:	the word is in the list, or was a file that has been
 ;		read
 ; Modifies:	everything
 
-argwend:	ld	a,(argwn)
+word_finish:	ld	a,(word_length)
 		or	a
 		ret	z		; two spaces in a row
 		ld	l,a
 		ld	h,0
-		ld	de,argw
+		ld	de,word_buffer
 		add	hl,de
 		ld	(hl),0		; terminate it
 		xor	a
-		ld	(argwn),a
-		jp	argwrd
+		ld	(word_length),a
+		jp	word_store
 
-; argwrd - what a finished word is.
+; word_store - what a finished word is.
 ;
-; Input:	argw, ASCIIZ
+; Input:	word_buffer, ASCIIZ
 ; Output:	it is in the list, or its file has been read
-;		(errlnest, errlrsp do not return)
+;		(error_nested_file_list, error_cannot_open_list do not return)
 ; Modifies:	everything
 
-argwrd:		ld	a,(argw)
-		cp	ARGAT
-		jr	z,argwr.f
-		ld	de,argw
-		jp	argadd
-argwr.f:	ld	a,(argnest)
+word_store:	ld	a,(word_buffer)
+		cp	RESPONSE_FILE_CHAR
+		jr	z,word_store.file
+		ld	de,word_buffer
+		jp	arglist_add
+word_store.file:
+		ld	a,(response_file_open)
 		or	a
-		jp	nz,errlnest	; @ INSIDE a response file: refused
-		ld	a,(argrone)	; AND ONLY ONE ON THE COMMAND LINE.
-		or	a		;   Two were accepted and read, and
-		jp	nz,errltwo	;   then the objects named in the
-		ld	a,0ffh		;   FIRST were looked for in the
-		ld	(argrone),a	;   SECOND's directory, because
-					;   argrdir, argrf and argrt hold one
-					;   file's answer - issue #23. 063
-					;   settled "one level, stated" for
-					;   nesting; this is its sibling, and
-					;   the same answer
-		ld	hl,argw+1	; the name, without the @
-		ld	de,argfn
-argwr.cp:	ld	a,(hl)
+		; @ INSIDE a response file: refused
+		jp	nz,error_nested_file_list
+		; AND ONLY ONE ON THE COMMAND LINE. Two were accepted and read,
+		;   and then the objects named in the FIRST were looked for in
+		;   the SECOND's directory, because response_file_directory,
+		;   response_first and response_last hold one file's answer -
+		;   issue #23. 063 settled "one level, stated" for nesting;
+		;   this is its sibling, and the same answer
+		ld	a,(response_file_read)
+		or	a
+		jp	nz,error_two_file_lists
+		ld	a,0ffh
+		ld	(response_file_read),a
+		ld	hl,word_buffer+1	; the name, without the @
+		ld	de,response_file_name
+word_store.copy:
+		ld	a,(hl)
 		ld	(de),a
 		or	a
-		jr	z,argwr.e
+		jr	z,word_store.done
 		inc	hl
 		inc	de
-		jr	argwr.cp
-argwr.e:	ld	a,(argfn)
+		jr	word_store.copy
+word_store.done:
+		ld	a,(response_file_name)
 		or	a
-		jp	z,errlrsp	; "@" and nothing after it
-		ld	de,argfn
-		ld	hl,msg_lnk
-		call	strext		; ".lnk", unless it has one
-		jp	argfile
+		; "@" and nothing after it
+		jp	z,error_cannot_open_list
+		ld	de,response_file_name
+		ld	hl,msg_lnk_extension
+		call	add_default_extension	; ".lnk", unless it has one
+		jp	read_response_file
 
-; argadd - one word, into the list.
+; arglist_add - one word, into the list.
 ;
 ; Input:	DE -> the word, ASCIIZ
-; Output:	the list holds it (errlargs does not return)
+; Output:	the list holds it (error_too_many_words does not return)
 ; Modifies:	AF, BC, DE, HL
 
-argadd:		ld	(argsrc),de
+arglist_add:	ld	(add_source),de
 		ex	de,hl
 		ld	bc,0		; how long it is, terminator and all
-argad.l:	ld	a,(hl)
+arglist_add.copy:
+		ld	a,(hl)
 		inc	hl
 		inc	bc
 		or	a
-		jr	nz,argad.l
-		ld	(arglen),bc
-		ld	hl,(argused)	; would it pass the end?
+		jr	nz,arglist_add.copy
+		ld	(add_length),bc
+		ld	hl,(list_used)	; would it pass the end?
 		add	hl,bc
-		ld	de,ARGSIZE
+		ld	de,ARGLIST_BLOCK_SIZE
 		ex	de,hl
 		or	a
 		sbc	hl,de
-		jp	c,errlargs
-		ld	bc,(argused)	; THE OFFSET IN BC, which survives
-		derefp	argptr		;   the deref
+		jp	c,error_too_many_words
+		ld	bc,(list_used)	; THE OFFSET IN BC, which survives
+		derefp	list_block	;   the deref
 		add	hl,bc
 		ex	de,hl		; DE -> where it goes in the block
-		ld	hl,(argsrc)
-		ld	bc,(arglen)
+		ld	hl,(add_source)
+		ld	bc,(add_length)
 		ldir
-		ld	hl,(argused)
-		ld	bc,(arglen)
+		ld	hl,(list_used)
+		ld	bc,(add_length)
 		add	hl,bc
-		ld	(argused),hl
-		ld	hl,(argn)
+		ld	(list_used),hl
+		ld	hl,(arglist_count)
 		inc	hl
-		ld	(argn),hl
+		ld	(arglist_count),hl
 		ret
 
-; argfrst, argnext - the list, one word at a time.
+; arglist_first, arglist_next - the list, one word at a time.
 ;
-; Input:	argnext: DE -> where the word goes, ARGMAX bytes
-; Output:	argnext: CY set = there are no more
+; Input:	arglist_next: DE -> where the word goes, ARGLIST_WORD_MAX bytes
+; Output:	arglist_next: CY set = there are no more
 ; Modifies:	AF, BC, DE, HL
 
-argfrst:	ld	hl,0
-		ld	(argpos),hl
+arglist_first:	ld	hl,0
+		ld	(walk_offset),hl
 		ret
 
-; argfrom - did the word at argpos come from the response file?
+; word_came_from_file - did the word at walk_offset come from a file?
 ;
 ;   THE RANGE IS ONE CONTIGUOUS SPAN, which is what makes this work
 ;   at all: ONE file list may be given and it may not name another,
@@ -257,205 +277,231 @@ argfrst:	ld	hl,0
 ;
 ;   THE SECOND HALF OF THAT WAS MISSING UNTIL 093, and this comment
 ;   named only the nesting rule - which was true, and not enough. Two
-;   lists on one command line overwrote argrdir, argrf and argrt, and
-;   the first file's objects were then looked for in the second
-;   file's directory. Issue #23.
+;   lists on one command line overwrote response_file_directory,
+;   response_first and response_last, and the first file's objects
+;   were then looked for in the second file's directory. Issue #23.
 ;
 ;   With no response file read the range is 0 to 0, and every word is
 ;   "at or past its end", so the answer is always no.
 ;
-; Input:	argpos, argrf, argrt
-; Output:	argfrf
+; Input:	walk_offset, response_first, response_last
+; Output:	word_from_file
 ; Modifies:	AF, DE, HL
 
-argfrom:	ld	hl,(argpos)
-		ld	de,(argrf)
+word_came_from_file:
+		ld	hl,(walk_offset)
+		ld	de,(response_first)
 		or	a
 		sbc	hl,de
-		jr	c,argfr.no	; before it starts
-		ld	hl,(argpos)
-		ld	de,(argrt)
+		jr	c,word_came_from_file.no	; before it starts
+		ld	hl,(walk_offset)
+		ld	de,(response_last)
 		or	a
 		sbc	hl,de
-		jr	nc,argfr.no	; at or past its end
+		jr	nc,word_came_from_file.no	; at or past its end
 		ld	a,0ffh
-		ld	(argfrf),a
+		ld	(word_from_file),a
 		ret
-argfr.no:	xor	a
-		ld	(argfrf),a
+word_came_from_file.no:
+		xor	a
+		ld	(word_from_file),a
 		ret
 
-argnext:	ld	(argdst),de
-		ld	hl,(argpos)
-		ld	de,(argused)
+arglist_next:	ld	(walk_target),de
+		ld	hl,(walk_offset)
+		ld	de,(list_used)
 		or	a
 		sbc	hl,de
-		jr	c,argnx.go
+		jr	c,arglist_next.word
 		scf
 		ret			; the list is used up
-argnx.go:	call	argfrom		; did this word come from the file?
-		ld	bc,(argpos)
-		derefp	argptr
+arglist_next.word:
+		; did this word come from the file?
+		call	word_came_from_file
+		ld	bc,(walk_offset)
+		derefp	list_block
 		add	hl,bc
-		ld	de,(argdst)
+		ld	de,(walk_target)
 		ld	bc,0
-argnx.cp:	ld	a,(hl)		; OUT OF THE MAPPER AND INTO RAM
+arglist_next.copy:
+		ld	a,(hl)		; OUT OF THE MAPPER AND INTO RAM
 		ld	(de),a		;   with no BDOS call between, which
 		inc	hl		;   is the rule every walk in this
 		inc	de		;   program obeys
 		inc	bc
 		or	a
-		jr	nz,argnx.cp
-		ld	hl,(argpos)
+		jr	nz,arglist_next.copy
+		ld	hl,(walk_offset)
 		add	hl,bc
-		ld	(argpos),hl
+		ld	(walk_offset),hl
 		or	a		; CY clear: there was one
 		ret
 
-; argfile - one response file's words, appended to the list.
+; read_response_file - one response file's words, appended to the list.
 ;
-;   THE NAME COMES IN THROUGH argfn AND NOT A REGISTER, so that
-;   errlrsp can print the file it could not open. errlopn reads
-;   objname for the same reason.
+;   THE NAME COMES IN THROUGH response_file_name AND NOT A REGISTER, so that
+;   error_cannot_open_list can print the file it could not open.
+;   error_cannot_open reads object_name for the same reason.
 ;
-; Input:	argfn, ASCIIZ
-; Output:	its words are in the list (errlrsp does not return)
+; Input:	response_file_name, ASCIIZ
+; Output:	its words are in the list
+;		(error_cannot_open_list does not return)
 ; Modifies:	everything
 
-argfile:	ld	de,argfn
+read_response_file:
+		ld	de,response_file_name
 		ld	a,1		; open mode 1 = read only
 		system	_OPEN		; -> A = error, B = handle
 		or	a
-		jp	nz,errlrsp
+		jp	nz,error_cannot_open_list
 		ld	a,b
-		ld	(arghand),a
-		ld	de,argfn	; WHERE THIS FILE LIVES, for the
-		call	strdirl		;   objects it names
-		ld	hl,argfn
-		ld	de,argrdir
+		ld	(response_file_handle),a
+		; WHERE THIS FILE LIVES, for the objects it names
+		ld	de,response_file_name
+		call	directory_length
+		ld	hl,response_file_name
+		ld	de,response_file_directory
 		or	a
-		jr	z,argf.nd
+		jr	z,read_response_file.named
 		ld	c,a
 		ld	b,0
 		ldir
-argf.nd:	xor	a
+read_response_file.named:
+		xor	a
 		ld	(de),a
-		ld	hl,(argused)	; and where its words begin
-		ld	(argrf),hl
+		ld	hl,(list_used)	; and where its words begin
+		ld	(response_first),hl
 		ld	hl,0
-		ld	(argbn),hl
-		ld	(argbi),hl
+		ld	(response_got),hl
+		ld	(response_at),hl
 		ld	a,0ffh
-		ld	(argnest),a	; @ inside this one is an error
+		ld	(response_file_open),a	; @ inside this one is an error
 		xor	a
-		ld	(argwn),a
-argf.lp:	call	argch
-		jr	c,argf.end
-		cp	ARGCOM
-		jr	z,argf.cmt
+		ld	(word_length),a
+read_response_file.loop:
+		call	read_response_char
+		jr	c,read_response_file.done
+		cp	RESPONSE_COMMENT_CHAR
+		jr	z,read_response_file.comment
 		cp	" "
-		jr	z,argf.sp
+		jr	z,read_response_file.space
 		cp	009h
-		jr	z,argf.sp
+		jr	z,read_response_file.space
 		cp	00dh
-		jr	z,argf.sp
+		jr	z,read_response_file.space
 		cp	00ah
-		jr	z,argf.sp
-		call	argwput
-		jr	argf.lp
-argf.sp:	call	argwend
-		jr	argf.lp
-argf.cmt:	call	argwend		; a comment ends the word too
-argf.cl:	call	argch		; and runs to the end of the line
-		jr	c,argf.end
+		jr	z,read_response_file.space
+		call	word_add_char
+		jr	read_response_file.loop
+read_response_file.space:
+		call	word_finish
+		jr	read_response_file.loop
+read_response_file.comment:
+		call	word_finish	; a comment ends the word too
+read_response_file.close:
+		call	read_response_char	; and runs to end of line
+		jr	c,read_response_file.done
 		cp	00ah
-		jr	nz,argf.cl
-		jr	argf.lp
-argf.end:	call	argwend		; A FILE MAY NOT END WITH A NEWLINE
-		ld	hl,(argused)	; and where its words end
-		ld	(argrt),hl
+		jr	nz,read_response_file.close
+		jr	read_response_file.loop
+read_response_file.done:
+		call	word_finish	; A FILE MAY NOT END WITH A NEWLINE
+		ld	hl,(list_used)	; and where its words end
+		ld	(response_last),hl
 		xor	a
-		ld	(argnest),a
-		ld	a,(arghand)
+		ld	(response_file_open),a
+		ld	a,(response_file_handle)
 		ld	b,a
 		system	_CLOSE
 		ret
 
-; argch - the next character of the response file.
+; read_response_char - the next character of the response file.
 ;
 ; Input:	nothing
 ; Output:	A = the character
 ;		CY set = the file has ended
 ; Modifies:	AF, BC, DE, HL
 
-argch:		ld	hl,(argbi)
-		ld	de,(argbn)
+read_response_char:
+		ld	hl,(response_at)
+		ld	de,(response_got)
 		or	a
 		sbc	hl,de
-		jr	c,argch.got	; still some in the buffer
-		ld	hl,ARGBUFS
-		ld	de,argbuf
-		ld	a,(arghand)
+		; still some in the buffer
+		jr	c,read_response_char.got
+		ld	hl,RESPONSE_CHUNK_SIZE
+		ld	de,response_buffer
+		ld	a,(response_file_handle)
 		ld	b,a
 		system	_READ		; -> A = error, HL = bytes read
-		ld	(argbn),hl
+		ld	(response_got),hl
 		ld	a,h
 		or	l
 		scf
 		ret	z		; nothing came back: the end
 		ld	hl,0
-		ld	(argbi),hl
-argch.got:	ld	hl,argbuf
-		ld	bc,(argbi)
+		ld	(response_at),hl
+read_response_char.got:
+		ld	hl,response_buffer
+		ld	bc,(response_at)
 		add	hl,bc
 		ld	a,(hl)
 		cp	01ah		; THE STOPPER. Every file this
 		scf			;   project writes ends with one,
 		ret	z		;   and a response file will too
-		ld	(argchr),a	; THE CHARACTER FIRST: argbi is
-		ld	hl,(argbi)	;   about to move, and (hl) with it
+		; THE CHARACTER FIRST: response_at is about to move, and (hl)
+		;   with it
+		ld	(response_char),a
+		ld	hl,(response_at)
 		inc	hl
-		ld	(argbi),hl
-		ld	a,(argchr)
+		ld	(response_at),hl
+		ld	a,(response_char)
 		or	a		; CY clear: a real character
 		ret
 
 		dseg
 
-argptr:		defs	4	; the block the words live in
-argused:	defs	2	; how much of it is used,
-argn:		defs	2	;   and how many words that is
-argpos:		defs	2	; argnext: how far the walk has got.
-				;   NOT argat: ARGAT is the "@" and
-				;   SOLiD folds case, so the two would
-				;   be one symbol
-argdst:		defs	2	;   and where it is putting them
-argsrc:		defs	2	; argadd: the word, across the deref,
-arglen:		defs	2	;   and how long it is
-argw:		defs	ARGMAX	; the word being built,
-argwn:		defs	1	;   and how much of it there is
-argfn:		defs	ARGMAX	; the response file being read
-argnest:	defs	1	; 0FFh while one is open,
-arghand:	defs	1	;   and its handle
-argrone:	defs	1	; 0FFh once one has been READ, which is
-				;   not the same thing: argnest is clear
-				;   again afterwards. A BYTE AND NOT A
-				;   TEST OF argrt, because a file holding
-				;   only comments leaves argrf and argrt
-				;   equal - and equal to zero, if the @
-				;   came first
-argbuf:		defs	ARGBUFS	; what has been read of it,
-argbn:		defs	2	;   how much came back,
-argbi:		defs	2	;   and how far through it we are
-argchr:		defs	1	; one character, across that pointer
-argcut:		defs	1	; 0FFh = the tail was 127 characters
-argrdir:	defs	DOSPATH	; the directory the response file lives
+list_block:	defs	4	; the block the words live in
+list_used:	defs	2	; how much of it is used,
+arglist_count:	defs	2	;   and how many words that is
+walk_offset:	defs	2	; arglist_next: how far the walk has got.
+				;   NOT argat: RESPONSE_FILE_CHAR is the
+				;   "@" and SOLiD folds case, so the two
+				;   would be one symbol
+walk_target:	defs	2	;   and where it is putting them
+add_source:	defs	2	; arglist_add: the word, across the deref,
+add_length:	defs	2	;   and how long it is
+word_buffer:	defs	ARGLIST_WORD_MAX	; the word being built,
+word_length:	defs	1	;   and how much of it there is
+response_file_name:
+		defs	ARGLIST_WORD_MAX	; the response file being read
+response_file_open:
+		defs	1	; 0FFh while one is open,
+response_file_handle:
+		defs	1	;   and its handle
+response_file_read:
+		defs	1	; 0FFh once one has been READ, which is
+				;   not the same thing: response_file_open
+				;   is clear again afterwards. A BYTE AND
+				;   NOT A TEST OF response_last, because a
+				;   file holding only comments leaves
+				;   response_first and response_last equal -
+				;   and equal to zero, if the @ came first
+response_buffer:
+		defs	RESPONSE_CHUNK_SIZE	; what has been read of it,
+response_got:	defs	2	;   how much came back,
+response_at:	defs	2	;   and how far through it we are
+response_char:	defs	1	; one character, across that pointer
+tail_truncated:	defs	1	; 0FFh = the tail was 127 characters
+response_file_directory:
+		defs	DOS_PATH_MAX	; the directory the response file lives
 				;   in, for the objects it names
-argrf:		defs	2	; the range of list offsets its words
-argrt:		defs	2	;   occupy - ONE contiguous span, because
+response_first:	defs	2	; the range of list offsets its words
+response_last:	defs	2	;   occupy - ONE contiguous span, because
 				;   a file list may not name another
-argfrf:		defs	1	; 0FFh = the word argnext just handed out
+word_from_file:	defs	1	; 0FFh = the word arglist_next just handed out
 				;   started inside that range
 
-msg_lnk:	defb	".lnk",0	; what a response file gets
+msg_lnk_extension:
+		defb	".lnk",0	; what a response file gets
 

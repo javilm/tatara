@@ -2,7 +2,8 @@
 ; macro, and the helper routines implemented in msxdos.as.
 ;
 ; msxdos.as includes this file too, for the macro and the equates: it
-; defines MSXDOS first, which skips the external declarations below - a
+; defines MSXDOS_INCLUDED first, which skips the external
+; declarations below - a
 ; symbol cannot be declared external in the module that defines it as
 ; global.
 
@@ -28,15 +29,16 @@ _SEEK		equ	0004ah		; move a file handle's pointer.
 					;   HIGH WORD, and DE:HL comes back
 					;   as the new position.
 					;   THIS ONCE SAID HL:DE and
-					;   nothing had caught it: objpos
-					;   seeks +0, where the order cannot
-					;   show, and objgo hands back the
-					;   very pair objpos was given, so
-					;   it round-trips either way. The
+					;   nothing had caught it:
+					;   remember_position seeks +0, where
+					;   the order cannot show, and
+					;   seek_remembered hands back the very
+					;   pair remember_position was given,
+					;   so it round-trips either way. The
 					;   first seek in this program that
 					;   moved a real distance was
-					;   lobskip's, and it went to the
-					;   end of the file
+					;   objfile_skip_record's, and it went
+					;   to the end of the file
 _GENV		equ	0006bh		; get an environment variable.
 					;   HL -> the name, DE -> a buffer,
 					;   B = its size. MSX-DOS 2 only
@@ -50,37 +52,39 @@ STDOUT		equ	1		; file handle of the standard output
 
 ; system func - call BDOS function "func".
 ;
-;   p2safe first: page 2 belongs to MSX-DOS whenever MSX-DOS runs, and
+;   page2_safe first: page 2 belongs to MSX-DOS whenever MSX-DOS runs, and
 ;   a mapper segment may be banked in there. Putting
 ;   the call HERE rather than at every BDOS call siet means every module
 ;   in the program obeys the rule, including the ones written before the
 ;   heap existed and the ones not written yet.
 ;
-;   p2safe preserves every register, so this macro still only clobbers C
+;   page2_safe preserves every register, so this macro still only clobbers C
 ;   plus whatever the function itself clobbers.
 
 system		macro	func
-		call	p2safe
+		call	page2_safe
 		ld	c,func
 		call	BDOS
 		endm
 
-		ifndef	MSXDOS
-		extrn dosver		; MSX-DOS2 present?
+		ifndef	MSXDOS_INCLUDED
+		extrn dos_version	; MSX-DOS2 present?
 					; out: A       = major version
 					;      CY set  = NOT MSX-DOS2
-		extrn putsz		; print the ASCIIZ string at DE
-		extrn putszu		; print the ASCIIZ string at DE, in
+		extrn print_zero_string	; print the ASCIIZ string at DE
+		extrn print_zero_string_upper
+					; print the ASCIIZ string at DE, in
 					; upper case (filenames)
-		extrn putdec		; print HL in decimal, no leading zeros
-		extrn putstr		; write the "$"-terminated string at
+		extrn print_decimal	; print HL in decimal, no leading zeros
+		extrn print_dollar_string
+					; write the "$"-terminated string at
 					; DE to standard output. REPLACES
-					; BDOS 09h: see putstr in msxdos.as
-					; for why there is only one way to
-					; write to standard output
-		extrn putch		; write the one character in E
+					; BDOS 09h: see print_dollar_string in
+					; msxdos.as for why there is only one
+					; way to write to standard output
+		extrn print_char	; write the one character in E
 					; in:  E = the character
-		extrn p2safe		; hand page 2 back, spoiling nothing
-		extrn dosexit		; hand control back to MSX-DOS
+		extrn page2_safe	; hand page 2 back, spoiling nothing
+		extrn dos_exit		; hand control back to MSX-DOS
 		endif
 

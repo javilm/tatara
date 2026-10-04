@@ -10,196 +10,210 @@
 ; understood, which is the property spec 5 is about and the dump in
 ; tanren.as demonstrates.
 
-LOBJLIB		equ	1	; skips the externals in lobj.inc
+LOBJ_INCLUDED		equ	1	; skips the externals in lobj.inc
 
-		public	lobopen
-		public	lobnext
-		public	lobpay
-		public	lobstr
-		public	lobskip
-		public	lobend
-		public	lobclose
-		public	lobtyp
-		public	lobleft
-		public	lobbuf
-		public	lobsln
-		public	lobgot
+		public	objfile_open
+		public	objfile_next_record
+		public	objfile_read_payload
+		public	objfile_read_string
+		public	objfile_skip_record
+		public	objfile_at_eof
+		public	objfile_close
+		public	objfile_record_type
+		public	objfile_record_left
+		public	objfile_string_buffer
+		public	objfile_string_length
+		public	objfile_bytes_read
 
 		include	lobj.inc
-		include	lerrs.inc	; errlopn, errlmag, errlver, errltrn
+		include	lerrs.inc
+					; error_cannot_open,
+					;   error_not_object_file,
+					;   error_wrong_version,
+					;   error_truncated
 		include	msxdos.inc	; _OPEN, _READ, _SEEK, _CLOSE
 
 		cseg
 
-; lobrd - HL bytes into DE: all of them, or carry.
+; read_bytes - HL bytes into DE: all of them, or carry.
 ;
 ;   MSX-DOS 2 answers a short read with the .EOF error AND the number
-;   of bytes it did manage, so lobgot is kept either way. The
+;   of bytes it did manage, so objfile_bytes_read is kept either way. The
 ;   difference between "nothing at all" and "one byte of a three-byte
 ;   header" is the difference between a file that ended and a file
-;   that was cut, and lobnext tells them apart by that count.
+;   that was cut, and objfile_next_record tells them apart by that count.
 ;
 ; Input:	HL = how many
 ;		DE -> where
 ; Output:	CY clear = all of them arrived
-;		CY set   = fewer, or an error. lobgot says how many
+;		CY set   = fewer, or an error. objfile_bytes_read says how many
 ; Modifies:	AF, BC, DE, HL
 
-lobrd:		ld	(lobwant),hl
-		ld	a,(lobhand)
+read_bytes:
+		ld	(bytes_wanted),hl
+		ld	a,(file_handle)
 		ld	b,a
 		system	_READ		; -> A = error, HL = bytes read
-		ld	(lobgot),hl	; BDOS gives the count either way
+					; BDOS gives the count either way
+		ld	(objfile_bytes_read),hl
 		or	a
 		scf
 		ret	nz
-		ld	de,(lobwant)
+		ld	de,(bytes_wanted)
 		or	a		; all of them?
 		sbc	hl,de
 		ret	z
 		scf
 		ret
 
-; lobopen - open the object file and check its header.
+; objfile_open - open the object file and check its header.
 ;
 ; Input:	DE -> the ASCIIZ filename
 ; Output:	the file is open (the three errors do not return)
 ; Modifies:	AF, BC, DE, HL
 
-lobopen:	ld	a,1		; open mode 1 = read only
+objfile_open:	ld	a,1		; open mode 1 = read only
 		system	_OPEN		; -> A = error, B = handle
 		or	a
-		jp	nz,errlopn
+		jp	nz,error_cannot_open
 		ld	a,b
-		ld	(lobhand),a
-		ld	de,lobbuf
+		ld	(file_handle),a
+		ld	de,objfile_string_buffer
 		ld	hl,5
-		call	lobrd
-		jp	c,errlmag	; a file too short to be one
-		ld	a,(lobbuf)
+		call	read_bytes
+		jp	c,error_not_object_file	; a file too short to be one
+		ld	a,(objfile_string_buffer)
 		cp	"T"
-		jp	nz,errlmag
-		ld	a,(lobbuf+1)
+		jp	nz,error_not_object_file
+		ld	a,(objfile_string_buffer+1)
 		cp	"R"
-		jp	nz,errlmag
-		ld	a,(lobbuf+2)
+		jp	nz,error_not_object_file
+		ld	a,(objfile_string_buffer+2)
 		cp	"O"
-		jp	nz,errlmag
-		ld	a,(lobbuf+3)
+		jp	nz,error_not_object_file
+		ld	a,(objfile_string_buffer+3)
 		cp	01ah		; the stopper, so TYPE prints "TRO"
-		jp	nz,errlmag	;   and stops
-		ld	a,(lobbuf+4)
-		cp	TROVER
-		jp	nz,errlver	; a Tatara object, but not ours
+		jp	nz,error_not_object_file	;   and stops
+		ld	a,(objfile_string_buffer+4)
+		cp	TRO_VERSION
+		jp	nz,error_wrong_version	; a Tatara object, but not ours
 		ret
 
-; lobnext - the next record's header.
+; objfile_next_record - the next record's header.
 ;
 ; Input:	nothing
-; Output:	CY clear = lobtyp and lobleft describe a record
+; Output: CY clear = objfile_record_type and objfile_record_left describe a
+; record
 ;		CY set   = the file ended cleanly, after the last one
-;		(errltrn does not return)
+;		(error_truncated does not return)
 ; Modifies:	AF, BC, DE, HL
 
-lobnext:	ld	de,lobbuf
+objfile_next_record:
+		ld	de,objfile_string_buffer
 		ld	hl,3
-		call	lobrd
-		jr	nc,lobn.got
-		ld	hl,(lobgot)	; nothing at all is a clean end;
+		call	read_bytes
+		jr	nc,objfile_next_record.got
+					; nothing at all is a clean end;
+		ld	hl,(objfile_bytes_read)
 		ld	a,h		;   one or two bytes is a header
 		or	l		;   that was cut in half
-		jp	nz,errltrn
+		jp	nz,error_truncated
 		scf
 		ret
-lobn.got:	ld	a,(lobbuf)
-		ld	(lobtyp),a
-		ld	hl,(lobbuf+1)
-		ld	(lobleft),hl
+objfile_next_record.got:
+		ld	a,(objfile_string_buffer)
+		ld	(objfile_record_type),a
+		ld	hl,(objfile_string_buffer+1)
+		ld	(objfile_record_left),hl
 		or	a		; CY clear: a record is open
 		ret
 
-; lobpay - A bytes of the open record's payload.
+; objfile_read_payload - A bytes of the open record's payload.
 ;
-;   TWO CHECKS, and they catch different lies. lobrd catches a file
+;   TWO CHECKS, and they catch different lies. read_bytes catches a file
 ;   that is shorter than the record says; the subtraction catches a
 ;   record that says less than its fields need.
 ;
 ; Input:	A  = how many, 1 to 255
 ;		DE -> where they go
-; Output:	they are there, and lobleft is that much smaller
-;		(errltrn does not return)
+; Output:	they are there, and objfile_record_left is that much smaller
+;		(error_truncated does not return)
 ; Modifies:	AF, BC, DE, HL
 
-lobpay:		ld	l,a
+objfile_read_payload:
+		ld	l,a
 		ld	h,0
-		ld	(lobn),hl
-		call	lobrd		; DE is already where they go
-		jp	c,errltrn
-		ld	hl,(lobleft)
-		ld	de,(lobn)
+		ld	(payload_count),hl
+		call	read_bytes		; DE is already where they go
+		jp	c,error_truncated
+		ld	hl,(objfile_record_left)
+		ld	de,(payload_count)
 		or	a
 		sbc	hl,de
-		jp	c,errltrn
-		ld	(lobleft),hl
+		jp	c,error_truncated
+		ld	(objfile_record_left),hl
 		ret
 
-; lobstr - one string: a length byte, then that many bytes.
+; objfile_read_string - one string: a length byte, then that many bytes.
 ;
-;   Zero-terminated in lobbuf, because everything that prints a name
-;   here goes through putsz. A length of 0 is forbidden by the format
-;   (spec 8), so it is a broken file and not an empty name.
+;   Zero-terminated in objfile_string_buffer, because everything that prints a
+;   name here goes through print_zero_string. A length of 0 is forbidden by the
+;   format (spec 8), so it is a broken file and not an empty name.
 ;
 ; Input:	nothing
-; Output:	lobbuf holds it, lobsln is its length
+; Output: objfile_string_buffer holds it, objfile_string_length is its length
 ; Modifies:	AF, BC, DE, HL
 
-lobstr:		ld	de,lobsln
+objfile_read_string:
+		ld	de,objfile_string_length
 		ld	a,1
-		call	lobpay
-		ld	a,(lobsln)
+		call	objfile_read_payload
+		ld	a,(objfile_string_length)
 		or	a
-		jp	z,errltrn
-		ld	de,lobbuf
-		call	lobpay		; A is still the length
-		ld	hl,lobbuf
-		ld	a,(lobsln)
+		jp	z,error_truncated
+		ld	de,objfile_string_buffer
+		call	objfile_read_payload		; A is still the length
+		ld	hl,objfile_string_buffer
+		ld	a,(objfile_string_length)
 		ld	e,a
 		ld	d,0
 		add	hl,de
 		ld	(hl),0
 		ret
 
-; lobskip - whatever is left of the open record.
+; objfile_skip_record - whatever is left of the open record.
 ;
 ;   A FORWARD SEEK. "Sequential, no backward seeking" forbids going
 ;   back, not going on, and reading tatara.tro's DATA records into a
 ;   buffer to throw them away would move six kilobytes for nothing.
 ;
 ; Input:	nothing
-; Output:	the record is consumed (errltrn does not return)
+; Output:	the record is consumed (error_truncated does not return)
 ; Modifies:	AF, BC, DE, HL
 
-lobskip:	ld	hl,(lobleft)
+objfile_skip_record:
+		ld	hl,(objfile_record_left)
 		ld	a,h
 		or	l
 		ret	z		; nothing left: END is like this
-		ld	hl,(lobleft)	; DE:HL = how far, DE THE HIGH WORD.
+					; DE:HL = how far, DE THE HIGH WORD.
+		ld	hl,(objfile_record_left)
 		ld	de,0		;   The other way round asks for a
 					;   seek of 12 * 65536, which MSX-DOS
 					;   grants by stopping at the end of
 					;   the file - no error, and the next
 					;   read says the records ran out
-		ld	a,(lobhand)
+		ld	a,(file_handle)
 		ld	b,a
 		ld	a,1		; 1 = from where we are
 		system	_SEEK
 		or	a
-		jp	nz,errltrn
+		jp	nz,error_truncated
 		ld	hl,0
-		ld	(lobleft),hl
+		ld	(objfile_record_left),hl
 		ret
 
-; lobend - after the last record, is that the end of the file?
+; objfile_at_eof - after the last record, is that the end of the file?
 ;
 ;   One byte is asked for. Getting it means something follows the END
 ;   record, which is legal (spec 11 says a reader ignores it) but
@@ -211,31 +225,44 @@ lobskip:	ld	hl,(lobleft)
 ;		CY set   = at least one byte follows
 ; Modifies:	AF, BC, DE, HL
 
-lobend:		ld	de,lobbuf
+objfile_at_eof:
+		ld	de,objfile_string_buffer
 		ld	hl,1
-		call	lobrd
-		ccf			; lobrd's carry means NOTHING was
+		call	read_bytes
+		ccf			; read_bytes's carry means NOTHING was
 		ret			;   there, which is the good answer
 
-; lobclose - done with the file.
+; objfile_close - done with the file.
 ;
 ; Input:	nothing
 ; Output:	the handle is closed
 ; Modifies:	AF, BC
 
-lobclose:	ld	a,(lobhand)
+objfile_close:	ld	a,(file_handle)
 		ld	b,a
 		system	_CLOSE
 		ret
 
 		dseg
 
-lobhand:	defs	1	; MSX-DOS's handle for the object file
-lobtyp:		defs	1	; the open record's type
-lobleft:	defs	2	;   and how much of its payload is unread
-lobwant:	defs	2	; lobrd: how many bytes were asked for,
-lobgot:		defs	2	;   and how many came back
-lobn:		defs	2	; lobpay: this call's count
-lobsln:		defs	1	; lobstr: the length byte it just read
-lobbuf:		defs	LMAXSTR	; and the string itself, terminated
+file_handle:	defs	1	; MSX-DOS's handle for the object file
+objfile_record_type:
+		defs	1	; the open record's type
+					; and how much of its payload is unread
+objfile_record_left:
+		defs	2
+bytes_wanted:	defs	2	; read_bytes: how many bytes were asked for,
+objfile_bytes_read:
+		defs	2	;   and how many came back
+					; objfile_read_payload: this call's
+					; count
+payload_count:
+		defs	2
+					; objfile_read_string: the length byte
+					; it just read
+objfile_string_length:
+		defs	1
+					; and the string itself, terminated
+objfile_string_buffer:
+		defs	OBJFILE_STRING_SIZE
 

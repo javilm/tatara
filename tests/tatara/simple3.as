@@ -1,4 +1,4 @@
-; C_ALUA: the 8-bit form, and the three 16-bit ones
+; CLASS_ARITH: the 8-bit form, and the three 16-bit ones
 	aseg
 	org	0
 t0:	add	a,b

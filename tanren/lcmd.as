@@ -12,49 +12,54 @@
 ; makes it a switch, anything else makes it an object file. That test
 ; is the one it always made, and it is now the only one it makes.
 
-LCMDLIB		equ	1	; skips the externals in lcmd.inc
+LCMD_INCLUDED	equ	1	; skips the externals in lcmd.inc
 
-		public	lcmparse
-		public	objname
-		public	outname
-		public	lcmfrst
-		public	lcmnext
-		public	loptdump
-		public	loptmap
-		public	loptquiet
-		public	loptver
-		public	lopthelp
-		public	loptout
-		public	loptbin
-		public	loptorg
-		public	lorgadr
-		public	loptdat
-		public	ldatadr
-		public	lcmodef
-		public	lcmovch
-		public	lcmbann
-		public	lcmwarn
-		public	lcmver
-		public	lcmusage
+		public	parse_command_line
+		public	object_name
+		public	output_name
+		public	objects_first
+		public	objects_next
+		public	opt_dump
+		public	opt_map
+		public	opt_quiet
+		public	opt_version
+		public	opt_help
+		public	opt_output
+		public	opt_bload
+		public	opt_code_origin
+		public	code_origin
+		public	opt_data_origin
+		public	data_origin
+		public	default_output_name
+		public	check_output_not_input
+		public	print_banner
+		public	print_truncation_warning
+		public	print_version_banner
+		public	print_usage
 
 		include	lcmd.inc
-		include	arglist.inc	; argtail, argfrst, argnext,
-					;   argcut
-		include	lerrs.inc	; errlunk, errlover
-		include	msxdos.inc	; _STROUT, dosexit
+		include	arglist.inc
+					; split_command_tail,
+					;   arglist_first, arglist_next,
+					;   tail_truncated
+		include	lerrs.inc
+					; error_unknown_option,
+					;   error_output_is_input
+		include	msxdos.inc	; _STROUT, dos_exit
 		include	ascii.inc	; CHR_CR, CHR_LF
-		include	strutil.inc	; strupr, strdot, strext
+		include	strutil.inc
+			; fold_to_upper, find_extension, add_default_extension
 
-LSLASH		equ	"/"
+SWITCH_CHAR	equ	"/"
 
 		cseg
 
-; lcmparse - what the words on the command line mean.
+; parse_command_line - what the words on the command line mean.
 ;
-;   argtail has already split them, expanded any @FILE, and put them
+;   split_command_tail has already split them, expanded any @FILE, and put them
 ;   in the mapper. This walks them once: a switch is acted on, and
 ;   anything else is counted - because "was a filename given at all?"
-;   is the only thing the caller needs to know here. lcmnext walks
+;   is the only thing the caller needs to know here. objects_next walks
 ;   the same list again, twice, to do the reading.
 ;
 ; Input:	nothing
@@ -62,43 +67,50 @@ LSLASH		equ	"/"
 ;		CY set   = none was
 ; Modifies:	everything
 
-lcmparse:	xor	a
-		ld	(loptdump),a
-		ld	(loptmap),a
-		ld	(loptquiet),a
-		ld	(loptver),a
-		ld	(lopthelp),a
-		ld	(loptout),a
-		ld	(loptbin),a
-		ld	(loptorg),a
-		ld	(loptdat),a
-		ld	(lcmnf),a
-		ld	(objname),a
-		ld	(outname),a
-		call	argtail		; THE WHOLE COMMAND LINE, as words
-		call	argfrst
-lcmp.lp:	ld	de,objname	; the buffer it is going to use
-		call	argnext		;   anyway
-		jr	c,lcmp.end
-		ld	a,(objname)
-		cp	LSLASH
-		jr	z,lcmp.opt
-		ld	hl,lcmnf	; a filename: COUNTED, not kept.
-		inc	(hl)		;   259 of them would wrap this
-		jr	lcmp.lp		;   byte, and the list would run
-lcmp.opt:	ld	de,objname	;   out first
-		call	lcpopt
-		jr	lcmp.lp
-lcmp.end:	xor	a
-		ld	(objname),a	; LEAVE IT EMPTY: lcmnext fills it
-		ld	a,(lcmnf)	;   when the reading starts
+parse_command_line:
+		xor	a
+		ld	(opt_dump),a
+		ld	(opt_map),a
+		ld	(opt_quiet),a
+		ld	(opt_version),a
+		ld	(opt_help),a
+		ld	(opt_output),a
+		ld	(opt_bload),a
+		ld	(opt_code_origin),a
+		ld	(opt_data_origin),a
+		ld	(filename_count),a
+		ld	(object_name),a
+		ld	(output_name),a
+		; THE WHOLE COMMAND LINE, as words
+		call	split_command_tail
+		call	arglist_first
+parse_command_line.word:
+		ld	de,object_name	; the buffer it is going to use
+		call	arglist_next	;   anyway
+		jr	c,parse_command_line.done
+		ld	a,(object_name)
+		cp	SWITCH_CHAR
+		jr	z,parse_command_line.switch
+		; a filename: COUNTED, not kept. 259 of them would wrap this
+		;   byte, and the list would run out first
+		ld	hl,filename_count
+		inc	(hl)
+		jr	parse_command_line.word
+parse_command_line.switch:
+		ld	de,object_name
+		call	do_switch
+		jr	parse_command_line.word
+parse_command_line.done:
+		xor	a
+		ld	(object_name),a	; LEAVE IT EMPTY: objects_next fills it
+		ld	a,(filename_count)	;   when the reading starts
 		or	a
 		scf
 		ret	z
 		or	a
 		ret
 
-; lcpopt - one option word.
+; do_switch - one option word.
 ;
 ;   IT TAKES A WHOLE WORD NOW. Every arm used to end in a jump to
 ;   lcpend, because each one had to step the tail pointer past the
@@ -108,54 +120,57 @@ lcmp.end:	xor	a
 ;   with it.
 ;
 ; Input:	DE -> the word, which starts with "/"
-; Output:	the flag is set (errlunk does not return)
+; Output:	the flag is set (error_unknown_option does not return)
 ; Modifies:	AF, BC, DE, HL
 
-lcpopt:		inc	de
+do_switch:	inc	de
 		ld	a,(de)
 		or	a
-		jp	z,errlunk	; a "/" with nothing after it
-		call	strupr
+		jp	z,error_unknown_option	; a "/" with nothing after it
+		call	fold_to_upper
 		cp	"B"
-		jr	z,lcpo.b
+		jr	z,do_switch.bload
 		cp	"D"
-		jp	z,lcpo.d	; jp: /D: and /P: sit past the flag
-					;   arms and past /O:, a hundred
-					;   bytes and more from here
+		; jp: /D: and /P: sit past the flag arms and past /O:, a
+		;   hundred bytes and more from here
+		jp	z,do_switch.data_origin
 		cp	"M"
-		jr	z,lcpo.m
+		jr	z,do_switch.map
 		cp	"O"
-		jr	z,lcpo.o
+		jr	z,do_switch.output
 		cp	"P"
-		jp	z,lcpo.p
+		jp	z,do_switch.code_origin
 		cp	"R"
-		jr	z,lcpo.r
+		jr	z,do_switch.dump
 		cp	"Q"
-		jr	z,lcpo.q
+		jr	z,do_switch.quiet
 		cp	"V"
-		jr	z,lcpo.v
-		cp	"?"		; not a letter, so strupr left it
-		jp	nz,errlunk
+		jr	z,do_switch.version
+		cp	"?"	; not a letter, so fold_to_upper left it
+		jp	nz,error_unknown_option
 		ld	a,0ffh
-		ld	(lopthelp),a
+		ld	(opt_help),a
 		ret
-lcpo.b:		ld	a,0ffh
-		ld	(loptbin),a
+do_switch.bload:
+		ld	a,0ffh
+		ld	(opt_bload),a
 		ret
-lcpo.r:		ld	a,0ffh		; the arm, under its new letter
-		ld	(loptdump),a
+do_switch.dump:	ld	a,0ffh		; the arm, under its new letter
+		ld	(opt_dump),a
 		ret
-lcpo.m:		ld	a,0ffh
-		ld	(loptmap),a
+do_switch.map:	ld	a,0ffh
+		ld	(opt_map),a
 		ret
-lcpo.q:		ld	a,0ffh
-		ld	(loptquiet),a
+do_switch.quiet:
+		ld	a,0ffh
+		ld	(opt_quiet),a
 		ret
-lcpo.v:		ld	a,0ffh
-		ld	(loptver),a
+do_switch.version:
+		ld	a,0ffh
+		ld	(opt_version),a
 		ret
 
-; lcpo.o - /O:<file>, the only option that carries a value.
+; do_switch.output - /O:<file>, the only option that carries a value.
 ;
 ;   L80 writes /P: and /E:, and the colon is the convention this
 ;   keeps. The name is the rest of the same word, so there is nothing
@@ -163,76 +178,82 @@ lcpo.v:		ld	a,0ffh
 ;   pointer to a word unchanged in everything but how it copies.
 ;
 ; Input:	DE -> the "O" of the word
-; Output:	outname, loptout (errlunk does not return)
+; Output:	output_name, opt_output (error_unknown_option does not return)
 ; Modifies:	AF, DE, HL
 
-lcpo.o:		inc	de		; past the "O"
+do_switch.output:
+		inc	de		; past the "O"
 		ld	a,(de)
 		cp	":"
-		jp	nz,errlunk
+		jp	nz,error_unknown_option
 		inc	de
 		ld	a,(de)
 		or	a
-		jp	z,errlunk	; "/O:" and nothing after it
+		jp	z,error_unknown_option	; "/O:" and nothing after it
 		ld	h,d
 		ld	l,e
-		ld	de,outname
-lcpo.cp:	ld	a,(hl)
+		ld	de,output_name
+do_switch.output_copy:
+		ld	a,(hl)
 		ld	(de),a
 		or	a
-		jr	z,lcpo.ce
+		jr	z,do_switch.output_done
 		inc	hl
 		inc	de
-		jr	lcpo.cp
-lcpo.ce:	ld	a,0ffh
-		ld	(loptout),a
+		jr	do_switch.output_copy
+do_switch.output_done:
+		ld	a,0ffh
+		ld	(opt_output),a
 		ret
 
-; lcpo.d, lcpo.p - /D:<addr> and /P:<addr>, where the data and the
-; code start.
+; do_switch.data_origin, do_switch.code_origin - /D:<addr> and
+; /P:<addr>, where the data and the code start.
 ;
 ;   /D WAS ONCE THE RECORD DUMP, before there was a linker to want
 ;   it for an address. L80's data origin is /D:, so the two would have
-;   been told apart by a colon alone, and the decision was
-;   was that "having /D and /D: is going to be confusing for many
+;   been told apart by a colon alone, and the decision was that
+;   "having /D and /D: is going to be confusing for many
 ;   people". The dump is /R now and these two are plain.
 ;
-;   Both require the colon, so /D and /P alone are errlunk rather than
-;   something silently ignored.
+;   Both require the colon, so /D and /P alone are
+;   error_unknown_option rather than something silently ignored.
 ;
 ; Input:	DE -> the letter of the word
-; Output:	ldatadr and loptdat, or lorgadr and loptorg
-;		(errlunk does not return)
+; Output:	data_origin and opt_data_origin, or code_origin
+;		and opt_code_origin
+;		(error_unknown_option does not return)
 ; Modifies:	AF, BC, DE, HL
 
-lcpo.d:		call	lcpoadr
-		ld	(ldatadr),hl
+do_switch.data_origin:
+		call	switch_address
+		ld	(data_origin),hl
 		ld	a,0ffh
-		ld	(loptdat),a
+		ld	(opt_data_origin),a
 		ret
 
-lcpo.p:		call	lcpoadr
-		ld	(lorgadr),hl
+do_switch.code_origin:
+		call	switch_address
+		ld	(code_origin),hl
 		ld	a,0ffh
-		ld	(loptorg),a
+		ld	(opt_code_origin),a
 		ret
 
-; lcpoadr - the address after a letter and a colon.
+; switch_address - the address after a letter and a colon.
 ;
 ; Input:	DE -> the letter
-; Output:	HL = the address (errlunk does not return)
+; Output:	HL = the address (error_unknown_option does not return)
 ; Modifies:	AF, BC, DE, HL
 
-lcpoadr:	inc	de
+switch_address:	inc	de
 		ld	a,(de)
 		cp	":"
-		jp	nz,errlunk
+		jp	nz,error_unknown_option
 		inc	de
-		call	strhex
-		jp	c,errlunk
+		call	parse_hex_number
+		jp	c,error_unknown_option
 		ret
 
-; lcmfrst, lcmnext - the object filenames, one at a time.
+; objects_first, objects_next - the object filenames, one at a time.
 ;
 ;   THE SAME LIST THE OPTIONS CAME FROM, walked again. A word that
 ;   begins with "/" is a switch and is stepped over; everything else
@@ -244,37 +265,38 @@ lcpoadr:	inc	de
 ;   sitting at 0080h.
 ;
 ; Input:	nothing
-; Output:	lcmnext: CY clear = objname holds the next one
+; Output:	objects_next: CY clear = object_name holds the next one
 ;		         CY set   = there are no more
 ; Modifies:	AF, BC, DE, HL
 
-lcmfrst:	jp	argfrst
+objects_first:	jp	arglist_first
 
-lcmnext:	ld	de,objname
-		call	argnext
+objects_next:	ld	de,object_name
+		call	arglist_next
 		ret	c
-		ld	a,(objname)
-		cp	LSLASH
-		jr	z,lcmnext	; a switch: step over it
-		call	lcmext		; ".tro", unless it has one already
-		call	lcmsrch		; and WHERE it is
+		ld	a,(object_name)
+		cp	SWITCH_CHAR
+		jr	z,objects_next	; a switch: step over it
+		call	add_object_extension	; ".tro", unless it has one
+		call	find_object_file	; and WHERE it is
 		or	a		; CY clear: a name was found
 		ret
 
-; lcmext - a default extension of .tro, on objname.
+; add_object_extension - a default extension of .tro, on object_name.
 ;
-; Input:	objname, ASCIIZ
+; Input:	object_name, ASCIIZ
 ; Output:	".tro" appended if it had no extension
 ; Modifies:	AF, BC, DE, HL
 
-lcmext:		ld	de,objname
-		ld	hl,msg_tro
-		jp	strext
+add_object_extension:
+		ld	de,object_name
+		ld	hl,msg_tro_extension
+		jp	add_default_extension
 
-; lcmsrch - find the object file objname names.
+; find_object_file - find the object file object_name names.
 ;
-;   IT CANNOT FAIL. If nothing opens, objname is left exactly as it
-;   was and lobopen reports it, which is what happened before this
+;   IT CANNOT FAIL. If nothing opens, object_name is left exactly as it
+;   was and objfile_open reports it, which is what happened before this
 ;   note existed - so there is no new error, no new contract, and
 ;   lobj.as and tanren.as are not touched at all.
 ;
@@ -285,93 +307,102 @@ lcmext:		ld	de,objname
 ;
 ;   IT OPENS AND CLOSES to find out - three BDOS calls per object
 ;   instead of one, over nineteen objects and two passes. The
-;   alternative is a search inside lobopen, which would have to know
+;   alternative is a search inside objfile_open, which would have to know
 ;   about the word list and about the environment, and lobj.as knows
 ;   about neither.
 ;
-; Input:	objname, with its extension
-;		argfrf, from the word this name came from
-; Output:	objname, with a directory in front of it if that is
+; Input:	object_name, with its extension
+;		word_from_file, from the word this name came from
+; Output:	object_name, with a directory in front of it if that is
 ;		where the file turned out to be
 ; Modifies:	everything
 
-lcmsrch:	ld	de,objname
-		call	strabs
+find_object_file:
+		ld	de,object_name
+		call	is_absolute_name
 		ret	c		; absolute: this or nothing
-		ld	a,(argfrf)	; 1 - where the file list lives
+		ld	a,(word_from_file)	; 1 - where the file list lives
 		or	a
-		jr	z,lcms.cur
-		ld	hl,argrdir
-		call	lcms.try
+		jr	z,find_object_file.as_typed
+		ld	hl,response_file_directory
+		call	find_object_file.try_prefix
 		ret	nc
-lcms.cur:	ld	de,objname	; 2 - as typed
-		call	lcms.op
+find_object_file.as_typed:
+		ld	de,object_name	; 2 - as typed
+		call	find_object_file.opens
 		ret	nc
-		call	lcmenv		; 3 - each entry of TANREN in turn
-		ld	hl,lenvbuf
-lcms.ev:	ld	a,(hl)
+		call	read_env_path	; 3 - each entry of TANREN in turn
+		ld	hl,env_path
+find_object_file.env_entry:
+		ld	a,(hl)
 		or	a
-		ret	z		; used up: objname is left as it was
-		call	lcms.try
+		ret	z	; used up: object_name is left as it was
+		call	find_object_file.try_prefix
 		ret	nc
 		ld	a,(hl)		; HL is at the ";" or at the end
 		or	a
 		ret	z		; that was the last entry
 		inc	hl		; past the ";"
-		jr	lcms.ev
+		jr	find_object_file.env_entry
 
-; lcms.try - one prefix: compose it with objname and see if it opens.
+; find_object_file.try_prefix - one prefix: compose it with
+;   object_name and see if it opens.
 ;
 ; Input:	HL -> the prefix, ended by 0 or ";"
-; Output:	CY clear = it opened, and objname now says where
+; Output:	CY clear = it opened, and object_name now says where
 ;		HL -> the prefix's terminator, either way
 ; Modifies:	everything
 
-lcms.try:	ld	de,objname
-		call	strcomp		; -> strbuf, HL at the terminator
-		ld	(lcmsp),hl	; KEEP IT: the copy below needs HL, and
+find_object_file.try_prefix:
+		ld	de,object_name
+		call	compose_path	; -> path_buffer, HL at the terminator
+		ld	(prefix_end),hl	; KEEP IT: the copy below needs HL, and
 					;   ld (nn),hl leaves the flags alone
-		jr	c,lcms.tno
-		ld	de,strbuf
-		call	lcms.op
-		jr	c,lcms.tno
-		ld	hl,strbuf	; it opened: this is the name now
-		ld	de,objname
-lcms.tcp:	ld	a,(hl)
+		jr	c,find_object_file.not_found
+		ld	de,path_buffer
+		call	find_object_file.opens
+		jr	c,find_object_file.not_found
+		ld	hl,path_buffer	; it opened: this is the name now
+		ld	de,object_name
+find_object_file.copy:
+		ld	a,(hl)
 		ld	(de),a
 		or	a
-		jr	z,lcms.tok
+		jr	z,find_object_file.found
 		inc	hl
 		inc	de
-		jr	lcms.tcp
-lcms.tok:	ld	hl,(lcmsp)
+		jr	find_object_file.copy
+find_object_file.found:
+		ld	hl,(prefix_end)
 		or	a		; CY clear
 		ret
-lcms.tno:	ld	hl,(lcmsp)
+find_object_file.not_found:
+		ld	hl,(prefix_end)
 		scf
 		ret
 
-; lcms.op - does this name open?
+; find_object_file.opens - does this name open?
 ;
 ;   Opened and closed again, because the answer is wanted and the
-;   handle is not: lobopen does the real open, with the magic check
+;   handle is not: objfile_open does the real open, with the magic check
 ;   that goes with it.
 ;
 ; Input:	DE -> the name, ASCIIZ
 ; Output:	CY set = MSX-DOS would not open it
 ; Modifies:	AF, BC
 
-lcms.op:	ld	a,1		; open mode 1 = read only
+find_object_file.opens:
+		ld	a,1		; open mode 1 = read only
 		system	_OPEN		; -> A = error, B = handle
 		or	a
 		scf
 		ret	nz
 		system	_CLOSE		; B is still the handle, and
-					;   p2safe preserves it
+					;   page2_safe preserves it
 		or	a
 		ret
 
-; lcmenv - fetch TANREN's value, once.
+; read_env_path - fetch TANREN's value, once.
 ;
 ;   ONCE, AND FAILURES COUNT AS DONE, so a link of nineteen objects
 ;   does not ask MSX-DOS nineteen times.
@@ -384,36 +415,36 @@ lcms.op:	ld	a,1		; open mode 1 = read only
 ;   set is worse than none, so that is an error.
 ;
 ; Input:	nothing
-; Output:	lenvbuf holds the value, or is empty
+; Output:	env_path holds the value, or is empty
 ; Modifies:	AF, BC, DE, HL
 
-lcmenv:		ld	a,(lenvrd)
+read_env_path:	ld	a,(env_read)
 		or	a
 		ret	nz		; asked once already
 		ld	a,1
-		ld	(lenvrd),a
+		ld	(env_read),a
 		xor	a
-		ld	(lenvbuf),a	; empty unless proved otherwise
-		call	dosver
+		ld	(env_path),a	; empty unless proved otherwise
+		call	dos_version
 		ret	c		; MSX-DOS 1: there are none
-		ld	hl,msg_lenvt
-		ld	de,lenvbuf
-		ld	b,LMAXENV
+		ld	hl,msg_env_name
+		ld	de,env_path
+		ld	b,ENV_VALUE_MAX
 		system	_GENV
 		or	a
 		ret	z		; the value is in the buffer
 		cp	ERR_ELONG
-		jp	z,errlenv
+		jp	z,error_env_too_long
 		xor	a
-		ld	(lenvbuf),a	; any other refusal: no path
+		ld	(env_path),a	; any other refusal: no path
 		ret
 
-msg_lenvt:	defb	"TANREN",0	; MSX-DOS upper-cases a variable's
+msg_env_name:	defb	"TANREN",0	; MSX-DOS upper-cases a variable's
 					;   name when it is set and compares
 					;   without case, so this spelling is
 					;   the whole of it
 
-; lcmodef - the output file's name, when /O: did not give one.
+; default_output_name - the output file's name, when /O: did not give one.
 ;
 ;   THE FIRST OBJECT FILE'S NAME WITH .com ON IT:
 ;   "Let's assume .com filename if none is specified." Whatever
@@ -427,38 +458,43 @@ msg_lenvt:	defb	"TANREN",0	; MSX-DOS upper-cases a variable's
 ;   becomes "main.com". A separate copy of the first name was once
 ;   for this and no longer needs one.
 ;
-; Input:	loptout, loptbin, the list
-; Output:	outname
+; Input:	opt_output, opt_bload, the list
+; Output:	output_name
 ; Modifies:	everything
 
-lcmodef:	ld	a,(loptout)
+default_output_name:
+		ld	a,(opt_output)
 		or	a
 		ret	nz		; /O: named one
-		call	lcmfrst
-		call	lcmnext
+		call	objects_first
+		call	objects_next
 		ret	c		; no filenames at all
-		ld	hl,objname
-		ld	de,outname
-lcmo.cp:	ld	a,(hl)
+		ld	hl,object_name
+		ld	de,output_name
+default_output_name.copy:
+		ld	a,(hl)
 		ld	(de),a
 		or	a
-		jr	z,lcmo.cut
+		jr	z,default_output_name.cut
 		inc	hl
 		inc	de
-		jr	lcmo.cp
-lcmo.cut:	ld	de,outname	; whatever extension it has comes
-		call	strdot		;   off
-		jr	c,lcmo.ext
+		jr	default_output_name.copy
+default_output_name.cut:
+		ld	de,output_name	; whatever extension it has comes
+		call	find_extension	;   off
+		jr	c,default_output_name.extension
 		ld	(hl),0
-lcmo.ext:	ld	de,outname	; and .com goes on - or .bin, if
-		ld	hl,msg_com	;   /B was given, because a BLOAD
-		ld	a,(loptbin)	;   header is what makes a file a
-		or	a		;   .BIN and nothing else does
-		jr	z,lcmo.go
-		ld	hl,msg_bin
-lcmo.go:	jp	strext
+default_output_name.extension:
+		ld	de,output_name	; and .com goes on - or .bin, if
+		ld	hl,msg_com_extension	;   /B was given, because a
+		ld	a,(opt_bload)	;   BLOAD header is what makes a
+		or	a		;   file a .BIN, and nothing else
+		jr	z,default_output_name.append
+		ld	hl,msg_bin_extension
+default_output_name.append:
+		jp	add_default_extension
 
-; lcmovch - the output file may not be one of the inputs.
+; check_output_not_input - the output file may not be one of the inputs.
 ;
 ;   The rule is "except when the output would overwrite one of
 ;   the input files". CHECKED BEFORE ANYTHING IS READ, because the
@@ -468,20 +504,22 @@ lcmo.go:	jp	strext
 ;   Both names carry their extensions by then, so "tanren /o:a.com a"
 ;   is allowed - the input is A.TRO - and "tanren /o:a.tro a" is not.
 ;
-; Input:	outname, and the list
-; Output:	nothing (errlover does not return)
+; Input:	output_name, and the list
+; Output:	nothing (error_output_is_input does not return)
 ; Modifies:	AF, BC, DE, HL
 
-lcmovch:	call	lcmfrst
-lcmov.lp:	call	lcmnext
+check_output_not_input:
+		call	objects_first
+check_output_not_input.loop:
+		call	objects_next
 		ret	c
-		ld	hl,objname
-		ld	de,outname
-		call	lcmsame
-		jp	z,errlover
-		jr	lcmov.lp
+		ld	hl,object_name
+		ld	de,output_name
+		call	same_filename
+		jp	z,error_output_is_input
+		jr	check_output_not_input.loop
 
-; lcmsame - two ASCIIZ filenames, compared without regard to case.
+; same_filename - two ASCIIZ filenames, compared without regard to case.
 ;
 ;   MSX-DOS does not care about the case of a filename, so neither may
 ;   this. PATHS ARE NOT RESOLVED: "A:\X\A.TRO" and "..\X\A.TRO" may be
@@ -495,44 +533,45 @@ lcmov.lp:	call	lcmnext
 ; Output:	Z set = the same name
 ; Modifies:	AF, BC, DE, HL
 
-lcmsame:	ld	a,(de)
-		call	strupr
+same_filename:	ld	a,(de)
+		call	fold_to_upper
 		ld	c,a
 		ld	a,(hl)
-		call	strupr
+		call	fold_to_upper
 		cp	c
 		ret	nz
 		or	a		; both ended together: the same
 		ret	z
 		inc	hl
 		inc	de
-		jr	lcmsame
+		jr	same_filename
 
-; lcmbann - the banner, unless /Q said not to.
+; print_banner - the banner, unless /Q said not to.
 ;
 ; Input:	nothing
 ; Output:	four lines, or none
 ; Modifies:	AF, DE
 
-lcmbann:	ld	a,(loptquiet)
+print_banner:	ld	a,(opt_quiet)
 		or	a
 		ret	nz
 
-; lcmver - and the banner whatever was asked for.
+; print_version_banner - and the banner whatever was asked for.
 ;
 ; Input:	nothing
 ; Output:	four lines, the last of them blank
 ; Modifies:	AF, DE
 
-lcmver:		ld	de,msg_lba1
-		call	putstr
-		ld	de,msg_lvnum
-		call	putstr
-		ld	de,msg_lba2
-		call	putstr
+print_version_banner:
+		ld	de,msg_banner_head
+		call	print_dollar_string
+		ld	de,msg_version
+		call	print_dollar_string
+		ld	de,msg_banner_tail
+		call	print_dollar_string
 		ret
 
-; lcmwarn - the command line may have been cut.
+; print_truncation_warning - the command line may have been cut.
 ;
 ;   MSX-DOS gives 127 characters and TRUNCATES A LONGER LINE WITHOUT
 ;   SAYING SO. That is the whole reason [R10] exists: the failure does
@@ -548,18 +587,19 @@ lcmver:		ld	de,msg_lba1
 ;   than to a summary, and /Q asks for the banner and the summary to
 ;   go.
 ;
-; Input:	argcut
+; Input:	tail_truncated
 ; Output:	three lines, or none
 ; Modifies:	AF, DE
 
-lcmwarn:	ld	a,(argcut)
+print_truncation_warning:
+		ld	a,(tail_truncated)
 		or	a
 		ret	z
-		ld	de,msg_lcut
-		call	putstr
+		ld	de,msg_truncated_warning
+		call	print_dollar_string
 		ret
 
-; lcmusage - the banner and the usage screen, and stop.
+; print_usage - the banner and the usage screen, and stop.
 ;
 ;   /Q does not silence it: asking for the screen and asking for
 ;   silence at once is a contradiction.
@@ -567,36 +607,43 @@ lcmwarn:	ld	a,(argcut)
 ; Input:	nothing
 ; Output:	does not return
 
-lcmusage:	call	lcmver
-		ld	de,msg_luse
-		call	putstr
-		jp	dosexit
+print_usage:	call	print_version_banner
+		ld	de,msg_usage_screen
+		call	print_dollar_string
+		jp	dos_exit
 
 ; THE VERSION IS WRITTEN ONCE. cmdline.as puts two labels together so
 ; that the listing's page header can have "Tatara v1.2.0" as thirteen
 ; bytes; the linker has no listing and needs only the number, so
-; msg_lvnum stands alone between the two halves of the banner.
+; msg_version stands alone between the two halves of the banner.
 
-msg_lvnum:	defb	"1.2.0","$"
-msg_tro:	defb	".tro",0	; what lcmext appends,
-msg_com:	defb	".com",0	;   what lcmodef does, and
-msg_bin:	defb	".bin",0	;   what it does instead with /B
+msg_version:	defb	"1.2.0","$"
+msg_tro_extension:
+		defb	".tro",0	; what add_object_extension appends,
+msg_com_extension:
+		defb	".com",0	;   what default_output_name does, and
+msg_bin_extension:
+		defb	".bin",0	;   what it does instead with /B
 
-msg_lba1:	defb	"Tatara MSX Linker v$"
-msg_lba2:	defb	CHR_CR,CHR_LF
+msg_banner_head:
+		defb	"Tatara MSX Linker v$"
+msg_banner_tail:
+		defb	CHR_CR,CHR_LF
 		defb	"Copyright (C) 2026 Javier Lavandeira"
 		defb	CHR_CR,CHR_LF
 		defb	"https://tatara.tools"
 		defb	CHR_CR,CHR_LF,CHR_CR,CHR_LF,"$"
 
-msg_lcut:	defb	"WARNING: the command line is 127"
+msg_truncated_warning:
+		defb	"WARNING: the command line is 127"
 		defb	" characters, which is all",CHR_CR,CHR_LF
 		defb	"MSX-DOS gives - anything past it was dropped"
 		defb	" in silence.",CHR_CR,CHR_LF
 		defb	"Use @<file> if a module is missing."
 		defb	CHR_CR,CHR_LF,CHR_CR,CHR_LF,"$"
 
-msg_luse:	defb	"Usage:  TANREN [options] <object|@list>"
+msg_usage_screen:
+		defb	"Usage:  TANREN [options] <object|@list>"
 		defb	" [more...]",CHR_CR,CHR_LF,CHR_CR,CHR_LF
 		defb	"Options:  /B Write a BLOAD header on the"
 		defb	" output file",CHR_CR,CHR_LF
@@ -630,27 +677,32 @@ msg_luse:	defb	"Usage:  TANREN [options] <object|@list>"
 
 		dseg
 
-objname:	defs	LMAXPATH+4	; the object file - AND ROOM FOR
-					;   lcmext's four characters, which a
-					;   name using the whole command tail
-					;   would otherwise run past
-outname:	defs	LMAXPATH+4	; the file the image is written
-					;   to, with room for lcmodef's
-					;   four characters
-lcmnf:		defs	1		; how many words were not switches
-lcmsp:		defs	2		; lcms.try: the prefix's terminator,
-					;   across the copy into objname
-lenvrd:		defs	1		; 0 = TANREN has not been looked up
-lenvbuf:	defs	LMAXENV		; its value, read once
-loptdump:	defs	1		; 0FFh = /D given
-loptmap:	defs	1		; 0FFh = /M given
-loptquiet:	defs	1		; 0FFh = /Q given
-loptver:	defs	1		; 0FFh = /V given
-lopthelp:	defs	1		; 0FFh = /? given
-loptout:	defs	1		; 0FFh = /O: given
-loptbin:	defs	1		; 0FFh = /B given
-loptorg:	defs	1		; 0FFh = /P: given, and
-lorgadr:	defs	2		;   where it said the code starts
-loptdat:	defs	1		; 0FFh = /D: given, and
-ldatadr:	defs	2		;   where it said the data starts
+object_name:	defs	PATH_MAX+4	; the object file - AND ROOM FOR
+					;   add_object_extension's four
+					;   characters, which a name using
+					;   the whole command tail would
+					;   otherwise run past
+output_name:	defs	PATH_MAX+4	; the file the image is written
+					;   to, with room for
+					;   default_output_name's four
+					;   characters
+filename_count:	defs	1		; how many words were not switches
+prefix_end:	defs	2		; find_object_file.try_prefix: the
+					;   prefix's terminator, across the
+					;   copy into object_name
+env_read:	defs	1		; 0 = TANREN has not been looked up
+env_path:	defs	ENV_VALUE_MAX	; its value, read once
+opt_dump:	defs	1		; 0FFh = /R given
+opt_map:	defs	1		; 0FFh = /M given
+opt_quiet:	defs	1		; 0FFh = /Q given
+opt_version:	defs	1		; 0FFh = /V given
+opt_help:	defs	1		; 0FFh = /? given
+opt_output:	defs	1		; 0FFh = /O: given
+opt_bload:	defs	1		; 0FFh = /B given
+opt_code_origin:
+		defs	1		; 0FFh = /P: given, and
+code_origin:	defs	2		;   where it said the code starts
+opt_data_origin:
+		defs	1		; 0FFh = /D: given, and
+data_origin:	defs	2		;   where it said the data starts
 

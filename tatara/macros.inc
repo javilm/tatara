@@ -1,46 +1,43 @@
 ; macros.inc - public interface of macros.as: macro definitions.
 ;
-; macros.as includes this files too: it defines MACSLIB first, which skips
-; the external declarations below - a symbol cannot be declared external in
-; the module that defines it as global.
+; macros.as includes this files too: it defines MACROS_INCLUDED first, which
+; skips the external declarations below - a symbol cannot be declared external
+; in the module that defines it as global.
 
-		ifndef	MACSLIB
-		extrn macinit		; format the name table. ONCE PER RUN,
-					; beside syminit: dseg space is not
-					; written to the object file, so the
-					; bucket array holds garbage until this
-					; has run
-		extrn macrst		; free every definition and empty the
+		ifndef	MACROS_INCLUDED
+		extrn macro_table_init	; format the name table. ONCE PER RUN,
+					; beside symbol_table_init: dseg space
+					; is not written to the object file, so
+					; the bucket array holds garbage until
+					; this has run
+		extrn macro_table_reset	; free every definition and empty the
 					; table. ONCE PER PASS: pass 2 must start
 					; where pass 1 did, or a macro called
 					; before it is defined behaves differently
 					; on the two passes
-		extrn macdef		; collect one macro definition
+		extrn collect_macro	; collect one macro definition
 					; in:  HL -> a line buffer to use
 					; out: CY clear = collected, ENDM
 					;                 consumed
-		extrn macrept		; collect an unnamed body: REPT, and
+		extrn collect_block	; collect an unnamed body: REPT, and
 					; IRP and IRPC
 					; in:  HL -> a line buffer
-					;      A   = MD_KIND
+					;      A   = MACRO_KIND
 					; out: HL -> the descriptor's far
 					;            pointer
-		extrn lstmacs		; every macro's NAME, sixteen
+		extrn list_macros	; every macro's NAME, sixteen
 					; columns each, for the listing's
 					; last page. M80 lists the names
 					; there and nothing else
-		extrn macdump		; print the definition just stored,		; every macro's NAME, sixteen
-					; columns each, for the listing's
-					; last page. M80 lists the names
-					; there and nothing else
-					; for /M. Valid only immediately after
-					; macdef returns
-		extrn macfind		; is this operation a macro's name?
+		extrn dump_macro	; print the definition just stored, for
+					; /M. Valid only immediately after
+					; collect_macro returns
+		extrn find_macro	; is this operation a macro's name?
 					; in:  DE -> the text, B = its length
 					;      HL -> a 4-byte buffer
 					; out: CY clear = yes, and the buffer
 					;                 holds the descriptor
-		extrn macname		; the other direction: what is this
+		extrn descriptor_name	; the other direction: what is this
 					; descriptor called? O(n) - it walks the
 					; whole table - so errs.as is the only
 					; caller, once, with the program about to
@@ -50,6 +47,7 @@
 					;                 terminated
 					;      CY set   = nothing names it: it is
 					;                 anonymous or orphaned,
-					;                 and MD_KIND says which
+					;                 and MACRO_KIND says
+					;                 which
 		endif
 

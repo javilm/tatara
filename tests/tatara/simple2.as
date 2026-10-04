@@ -1,4 +1,4 @@
-; C_ALU: a register, (HL), an indexed operand, an immediate
+; CLASS_ALU: a register, (HL), an indexed operand, an immediate
 	aseg
 	org	0
 t0:	and	b

@@ -14,45 +14,45 @@
 ;   THE CURSOR IS IN MEMORY, not in registers. An instruction's operands
 ;   are walked by several routines in turn - and
 ;   threading a pointer and a count through all of them costs more in
-;   pushes and pops than the three bytes opptr and oplen take.
+;   pushes and pops than the three bytes operand_cursor and operand_left take.
 
-OPTLIB		equ	1		; skips the externals in optab.inc
+OPTAB_INCLUDED	equ	1		; skips the externals in optab.inc
 
-		public	opfind
-		public	opinit
-		public	opskip
-		public	opnone
-		public	opword
-		public	opr8
-		public	opexp
-		public	opcomma
-		public	opadv
-		public	opend
-		public	opany
-		public	opqrun
-		public	opccm
-		public	opisc
-		public	opissp
-		public	opnodsp
-		public	oprest
-		public	opxtext
-		public	opdtext
-		public	opkind
-		public	opcod
-		public	opfix
-		public	regtab
-		public	cctab
+		public	find_mnemonic
+		public	operand_start
+		public	operand_skip_blanks
+		public	operand_must_end
+		public	find_operand_word
+		public	read_byte_source
+		public	skip_expression
+		public	expect_comma
+		public	operand_advance
+		public	operand_at_end
+		public	read_operand
+		public	skip_quoted_run
+		public	condition_and_comma
+		public	operand_is_c
+		public	operand_is_sp
+		public	no_displacement
+		public	operand_restore
+		public	expression_text
+		public	displacement_text
+		public	operand_kind
+		public	operand_code
+		public	operand_prefix
+		public	register_table
+		public	condition_table
 
 		include	optab.inc
-		include	strutil.inc	; strupr
+		include	strutil.inc	; fold_to_upper
 		include	ascii.inc	; CHR_TAB
-		include	errs.inc	; erroper
+		include	errs.inc	; error_not_a_form
 
 		cseg
 
-; opfind - is this operation one of the Z80's or the R800's mnemonics?
+; find_mnemonic - is this operation one of the Z80's or the R800's mnemonics?
 ;
-;   The same walk as dirlook in dirtab.as, with two payload bytes rather
+;   The same walk as find_directive in dirtab.as, with two payload bytes rather
 ;   than one. They are deliberately NOT shared: they differ in payload
 ;   size, in return convention and in what they do when they fail, the
 ;   genuinely common part is a twelve-instruction compare loop, and one
@@ -71,32 +71,36 @@ OPTLIB		equ	1		; skips the externals in optab.inc
 ;		CY clear = A is its class, C its base opcode
 ; Modifies:	AF, BC, DE, HL
 
-opfind:		ld	hl,optab
-opf.ent:	ld	a,(hl)		; this entry's length byte
+find_mnemonic:	ld	hl,mnemonic_table
+find_mnemonic.entry:
+		ld	a,(hl)		; this entry's length byte
 		or	a
 		scf
 		ret	z		; the end marker: no such mnemonic
 		cp	b
-		jr	z,opf.try	; same length: worth comparing
-opf.next:	ld	a,(hl)		; step over length + name + class
+		jr	z,find_mnemonic.compare	; same length: worth comparing
+find_mnemonic.next_entry:
+		ld	a,(hl)		; step over length + name + class
 		add	a,3		;   + base
 		add	a,l
 		ld	l,a
-		jr	nc,opf.ent
+		jr	nc,find_mnemonic.entry
 		inc	h
-		jr	opf.ent
+		jr	find_mnemonic.entry
 
-opf.try:	push	hl		; the entry, in case it does not
+find_mnemonic.compare:
+		push	hl		; the entry, in case it does not
 		push	de		;   match, and the operation text
 		ld	c,b		; C = characters left to compare
-opf.ch:		inc	hl		; HL -> the next character of the
+find_mnemonic.compare_char:
+		inc	hl		; HL -> the next character of the
 		ld	a,(de)		;   name
-		call	strupr
+		call	fold_to_upper
 		cp	(hl)
-		jr	nz,opf.no
+		jr	nz,find_mnemonic.no_match
 		inc	de
 		dec	c
-		jr	nz,opf.ch
+		jr	nz,find_mnemonic.compare_char
 		inc	hl		; past the last character: the
 		ld	a,(hl)		;   class byte
 		inc	hl
@@ -106,95 +110,102 @@ opf.ch:		inc	hl		; HL -> the next character of the
 		or	a		; CY clear = found. No class is 0,
 		ret			;   so this cannot set Z either
 
-opf.no:		pop	de
+find_mnemonic.no_match:
+		pop	de
 		pop	hl
-		jr	opf.next
+		jr	find_mnemonic.next_entry
 
 ; --- the operand cursor
 
-; opinit - point the cursor at this line's operand field.
+; operand_start - point the cursor at this line's operand field.
 ;
 ; Input:	DE -> the operand text
 ;		A  = how long it is
 ; Output:	the cursor is set
 ; Modifies:	nothing
 
-opinit:		ld	(opptr),de
-		ld	(oplen),a
+operand_start:	ld	(operand_cursor),de
+		ld	(operand_left),a
 		ret
 
-; opskip - step the cursor over blanks and tabs.
+; operand_skip_blanks - step the cursor over blanks and tabs.
 ;
 ; Input:	nothing
 ; Output:	the cursor is on the first character that is neither, or
 ;		at the end
 ; Modifies:	AF, DE
 
-opskip:		push	bc
-		ld	de,(opptr)
-		ld	a,(oplen)
+operand_skip_blanks:
+		push	bc
+		ld	de,(operand_cursor)
+		ld	a,(operand_left)
 		ld	b,a
-opsk.lp:	ld	a,b
+operand_skip_blanks.scan:
+		ld	a,b
 		or	a
-		jr	z,opsk.end
+		jr	z,operand_skip_blanks.done
 		ld	a,(de)
 		cp	" "
-		jr	z,opsk.st
+		jr	z,operand_skip_blanks.step
 		cp	CHR_TAB
-		jr	nz,opsk.end
-opsk.st:	inc	de
+		jr	nz,operand_skip_blanks.done
+operand_skip_blanks.step:
+		inc	de
 		dec	b
-		jr	opsk.lp
-opsk.end:	ld	(opptr),de
+		jr	operand_skip_blanks.scan
+operand_skip_blanks.done:
+		ld	(operand_cursor),de
 		ld	a,b
-		ld	(oplen),a
+		ld	(operand_left),a
 		pop	bc
 		ret
 
-; opnone - the operand field must have nothing left in it.
+; operand_must_end - the operand field must have nothing left in it.
 ;
-;   insnline calls this after the class handler has taken what it wants,
-;   so every class gets the check and none of them can forget it. "nop
+;   assemble_instruction calls this after the class handler has taken what it
+;   wants, so every class gets the check and none of them can forget it. "nop
 ;   1" is the error it exists for.
 ;
 ; Input:	nothing
-; Output:	returns, or erroper stops
+; Output:	returns, or error_not_a_form stops
 ; Modifies:	AF, DE
 
-opnone:		call	opskip
-		ld	a,(oplen)
+operand_must_end:
+		call	operand_skip_blanks
+		ld	a,(operand_left)
 		or	a
 		ret	z
-		jp	erroper
+		jp	error_not_a_form
 
-; opend - is anything left in the operand field?
+; operand_at_end - is anything left in the operand field?
 ;
 ;   The cursor is this module's business, so a handler asks rather than
-;   reading oplen for itself. cls.ret is the one that needs to know, to
-;   tell "ret" from "ret nz".
+;   reading operand_left for itself. assemble_ret is the one that needs to
+;   know, to tell "ret" from "ret nz".
 ;
 ; Input:	nothing
 ; Output:	Z set = nothing is left
 ; Modifies:	AF, DE
 
-opend:		call	opskip
-		ld	a,(oplen)
+operand_at_end:	call	operand_skip_blanks
+		ld	a,(operand_left)
 		or	a
 		ret
 
-; opadv - step the cursor on by A characters.
+; operand_advance - step the cursor on by A characters.
 ;
 ; Input:	A = how many, and never more than is left
 ; Output:	the cursor has moved. A is unchanged
 ; Modifies:	F, HL
 
-opadv:		push	bc
+operand_advance:
+		push	bc
 		ld	c,a
 		ld	b,0
-		ld	hl,(opptr)
+		ld	hl,(operand_cursor)
 		add	hl,bc
-		ld	(opptr),hl
-		ld	hl,oplen
+		ld	(operand_cursor),hl
+		ld	hl,operand_left
 		ld	a,(hl)
 		sub	c
 		ld	(hl),a
@@ -202,27 +213,29 @@ opadv:		push	bc
 		pop	bc
 		ret
 
-; opsave, oprest - remember where the cursor is, and put it back.
+; operand_save, operand_restore - remember where the cursor is, and put it
+; back.
 ;
-;   One level, and one user: opr8, which has to be able to change its
-;   mind. "cp (foo)" must fall through to an expression, because in M80
+;   One level, and one user: read_byte_source, which has to be able to change
+;   its mind. "cp (foo)" must fall through to an expression, because in M80
 ;   parentheses are grouping and that line means "cp foo".
 ;
 ; Modifies:	AF, HL
 
-opsave:		ld	hl,(opptr)
-		ld	(opsptr),hl
-		ld	a,(oplen)
-		ld	(opslen),a
+operand_save:	ld	hl,(operand_cursor)
+		ld	(saved_cursor),hl
+		ld	a,(operand_left)
+		ld	(saved_left),a
 		ret
 
-oprest:		ld	hl,(opsptr)
-		ld	(opptr),hl
-		ld	a,(opslen)
-		ld	(oplen),a
+operand_restore:
+		ld	hl,(saved_cursor)
+		ld	(operand_cursor),hl
+		ld	a,(saved_left)
+		ld	(operand_left),a
 		ret
 
-; opisdl - does this character end an operand word?
+; ends_operand_word - does this character end an operand word?
 ;
 ;   An apostrophe is NOT one of these, so AF' measures three characters
 ;   and can be told from AF.
@@ -231,7 +244,8 @@ oprest:		ld	hl,(opsptr)
 ; Output:	Z set = yes, it ends a word
 ; Modifies:	F only
 
-opisdl:		cp	" "
+ends_operand_word:
+		cp	" "
 		ret	z
 		cp	CHR_TAB
 		ret	z
@@ -246,36 +260,40 @@ opisdl:		cp	" "
 		cp	"-"
 		ret
 
-; opwmeas - how many characters at the cursor could be an operand word.
+; measure_operand_word - how many characters at the cursor could be an operand
+; word.
 ;
 ; Input:	nothing
 ; Output:	A = the count, 0 if the cursor is on a delimiter or at
 ;		the end
 ; Modifies:	AF, BC, DE
 
-opwmeas:	ld	de,(opptr)
-		ld	a,(oplen)
+measure_operand_word:
+		ld	de,(operand_cursor)
+		ld	a,(operand_left)
 		ld	b,a
 		ld	c,0
-opwm.lp:	ld	a,b
+measure_operand_word.scan:
+		ld	a,b
 		or	a
-		jr	z,opwm.end
+		jr	z,measure_operand_word.done
 		ld	a,(de)
-		call	opisdl
-		jr	z,opwm.end
+		call	ends_operand_word
+		jr	z,measure_operand_word.done
 		inc	de
 		inc	c
 		dec	b
-		jr	opwm.lp
-opwm.end:	ld	a,c
+		jr	measure_operand_word.scan
+measure_operand_word.done:
+		ld	a,c
 		ret
 
-; opword - is the word at the cursor one of this table's?
+; find_operand_word - is the word at the cursor one of this table's?
 ;
-;   regtab and cctab have the same row shape: a length byte, the name in
-;   upper case, a kind and a code. Which table to ask is the CALLER's
-;   decision, and that is the whole answer to C being a register in one
-;   and a condition in the other.
+;   register_table and condition_table have the same row shape: a length byte,
+;   the name in upper case, a kind and a code. Which table to ask is the
+;   CALLER's decision, and that is the whole answer to C being a register in
+;   one and a condition in the other.
 ;
 ;   IX and IY carry their PREFIX in the code column, because it is the
 ;   only thing that tells them apart anywhere in the instruction set and
@@ -284,177 +302,206 @@ opwm.end:	ld	a,c
 ; Input:	HL -> the table
 ; Output:	CY set   = no such word here, and the cursor has not
 ;			   moved
-;		CY clear = (opkind) and (opcod) are set, (opfix) too for
+;		CY clear = (operand_kind) and (operand_code) are set,
+;		(operand_prefix) too for
 ;			   IX, IY and the four index halves, and the
 ;			   cursor is past the word
 ; Modifies:	AF, BC, DE, HL
 
-opword:		ld	(opwtab),hl
-		call	opwmeas
+find_operand_word:
+		ld	(word_table),hl
+		call	measure_operand_word
 		or	a
 		scf
 		ret	z		; no word here at all
-		ld	(opwn),a
-		ld	hl,(opwtab)
-opw.ent:	ld	a,(hl)
+		ld	(operand_word_length),a
+		ld	hl,(word_table)
+find_operand_word.entry:
+		ld	a,(hl)
 		or	a
 		scf
 		ret	z		; the end of the table
 		ld	c,a
-		ld	a,(opwn)
+		ld	a,(operand_word_length)
 		cp	c
-		jr	z,opw.try
-opw.next:	ld	a,(hl)		; over length + name + kind + code
+		jr	z,find_operand_word.compare
+find_operand_word.next_entry:
+		ld	a,(hl)		; over length + name + kind + code
 		add	a,3
 		add	a,l
 		ld	l,a
-		jr	nc,opw.ent
+		jr	nc,find_operand_word.entry
 		inc	h
-		jr	opw.ent
+		jr	find_operand_word.entry
 
-opw.try:	push	hl
-		ld	de,(opptr)
-opw.ch:		inc	hl
+find_operand_word.compare:
+		push	hl
+		ld	de,(operand_cursor)
+find_operand_word.compare_char:
+		inc	hl
 		ld	a,(de)
-		call	strupr		; the table is upper case, and a
+		call	fold_to_upper	; the table is upper case, and a
 		cp	(hl)		;   register name is recognised in
-		jr	nz,opw.no	;   either
+		jr	nz,find_operand_word.no_match	;   either
 		inc	de
 		dec	c
-		jr	nz,opw.ch
+		jr	nz,find_operand_word.compare_char
 		inc	hl		; past the name: the kind
 		ld	a,(hl)
-		ld	(opkind),a
+		ld	(operand_kind),a
 		inc	hl
 		ld	c,(hl)		; the code - or the prefix
 		pop	hl
-		cp	OK_IX		; A is still the kind
-		jr	nz,opw.half
+		cp	OPERAND_IX	; A is still the kind
+		jr	nz,find_operand_word.index_half
 		ld	a,c		; IX and IY: the code column held
-		ld	(opfix),a	;   0DDh or 0FDh, and the pair code
+		ld	(operand_prefix),a
+					;   0DDh or 0FDh, and the pair code
 		ld	c,2		;   is HL's
-		jr	opw.got
+		jr	find_operand_word.found
 
-opw.half:	ld	b,0ddh		; an index half: the column held the
-		cp	OK_R8IX		;   register code, 4 or 5, and the
-		jr	z,opw.hf1	;   KIND says which prefix goes in
+find_operand_word.index_half:
+		ld	b,0ddh		; an index half: the column held the
+		cp	OPERAND_IX_HALF	;   register code, 4 or 5, and the
+		jr	z,find_operand_word.half_prefix
+					;   KIND says which prefix goes in
 		ld	b,0fdh		;   front of it
-		cp	OK_R8IY
-		jr	nz,opw.got
-opw.hf1:	ld	a,b
-		ld	(opfix),a
-		ld	a,OK_R8X	; ONE kind outside this routine, so
-		ld	(opkind),a	;   a handler asks one question
-opw.got:	ld	a,c
-		ld	(opcod),a
-		ld	a,(opwn)
-		call	opadv		; over the word
+		cp	OPERAND_IY_HALF
+		jr	nz,find_operand_word.found
+find_operand_word.half_prefix:
+		ld	a,b
+		ld	(operand_prefix),a
+		ld	a,OPERAND_HALF	; ONE kind outside this routine, so
+		ld	(operand_kind),a	;   a handler asks one question
+find_operand_word.found:
+		ld	a,c
+		ld	(operand_code),a
+		ld	a,(operand_word_length)
+		call	operand_advance	; over the word
 		or	a		; a word is never 0 long, so this
 		ret			;   clears CY
 
-opw.no:		pop	hl
-		jr	opw.next
+find_operand_word.no_match:
+		pop	hl
+		jr	find_operand_word.next_entry
 
-; opclose - the ")" that ends an indexed operand.
+; expect_close_paren - the ")" that ends an indexed operand.
 ;
 ; Output:	CY set = it is not there
 ; Modifies:	AF, DE, HL
 
-opclose:	call	opskip
-		ld	a,(oplen)
+expect_close_paren:
+		call	operand_skip_blanks
+		ld	a,(operand_left)
 		or	a
 		scf
 		ret	z
-		ld	de,(opptr)
+		ld	de,(operand_cursor)
 		ld	a,(de)
 		cp	")"
 		scf
 		ret	nz
 		ld	a,1
-		call	opadv
+		call	operand_advance
 		or	a
 		ret
 
-; opdisp - the displacement inside (IX+d), if there is one.
+; read_displacement - the displacement inside (IX+d), if there is one.
 ;
 ;   "+" or "-" and then an expression, which pass 1 steps over without
 ;   reading. "(ix)" is legal and means a displacement of zero - still a
 ;   byte in the instruction, so the length does not change.
 ;
 ;   Brackets inside it nest, so "(ix+(3*2))" works. A ")" inside a
-;   character constant does NOT, which is the same gap opexp has and
+;   character constant does NOT, which is the same gap skip_expression has and
 ;   which LD's quote-aware scanner closes.
 ;
-;   It reports nothing. Whatever goes wrong, opclose finds no ")".
+;   It reports nothing. Whatever goes wrong, expect_close_paren finds no ")".
 ;
 ; Modifies:	AF, BC, DE, HL
 
-opdisp:		xor	a
-		ld	(opdl),a	; none until one is found, and both the
-		call	opskip		;   returns below leave it that way
-		ld	a,(oplen)
+read_displacement:
+		xor	a
+		ld	(displacement_length),a
+					; none until one is found, and both the
+		call	operand_skip_blanks
+					;   returns below leave it that way
+		ld	a,(operand_left)
 		or	a
 		ret	z
-		ld	de,(opptr)
+		ld	de,(operand_cursor)
 		ld	a,(de)
 		cp	"+"
-		jr	z,opd.go
+		jr	z,read_displacement.found
 		cp	"-"
 		ret	nz		; the ")", presumably
-opd.go:		ld	hl,(opptr)	; WHERE it starts, and that is AT THE
-		ld	(opdp),hl	;   SIGN: "(ix-1)" is -1, and an
+read_displacement.found:
+		ld	hl,(operand_cursor)
+					; WHERE it starts, and that is AT THE
+		ld	(displacement_at),hl
+					;   SIGN: "(ix-1)" is -1, and an
 					;   expression starting at the "1"
 					;   is +1
 		ld	a,1
-		ld	(opdsp),a	; there IS a displacement, which only
-		call	opadv		;   JP cares about. A stays 1: over
+		ld	(displacement_seen),a
+					; there IS a displacement, which only
+		call	operand_advance	;   JP cares about. A stays 1: over
 					;   the sign
 		ld	c,0		; C = how deep the brackets are
-opd.lp:		ld	a,(oplen)
+read_displacement.scan:
+		ld	a,(operand_left)
 		or	a
-		jr	z,opd.fin
-		ld	de,(opptr)
+		jr	z,read_displacement.done
+		ld	de,(operand_cursor)
 		ld	a,(de)
-		call	opisq		; a quoted run is opaque: a ")" in
-		jr	nz,opd.nq	;   one does not close the operand
+		call	is_quote_char	; a quoted run is opaque: a ")" in
+		jr	nz,read_displacement.not_quote
+					;   one does not close the operand
 		push	bc		; C is the bracket depth, and
-		call	opqrun		;   opqrun wants C for itself
+		call	skip_quoted_run	;   skip_quoted_run wants C for itself
 		pop	bc
-		jr	opd.lp
-opd.nq:		cp	"("
-		jr	z,opd.in
+		jr	read_displacement.scan
+read_displacement.not_quote:
+		cp	"("
+		jr	z,read_displacement.nest
 		cp	")"
-		jr	nz,opd.on
+		jr	nz,read_displacement.step
 		ld	a,c
 		or	a
-		jr	z,opd.fin	; the one that closes the operand
+		jr	z,read_displacement.done
+					; the one that closes the operand
 		dec	c
-		jr	opd.on
-opd.in:		inc	c
-opd.on:		ld	a,1
-		call	opadv
-		jr	opd.lp
+		jr	read_displacement.step
+read_displacement.nest:
+		inc	c
+read_displacement.step:
+		ld	a,1
+		call	operand_advance
+		jr	read_displacement.scan
 
-opd.fin:	ld	hl,(opptr)	; how long it turned out to be, sign
-		ld	de,(opdp)	;   included - the sign is part of
+read_displacement.done:
+		ld	hl,(operand_cursor)
+					; how long it turned out to be, sign
+		ld	de,(displacement_at)
+					;   included - the sign is part of
 		or	a		;   the value, not punctuation
 		sbc	hl,de
 		ld	a,l
-		ld	(opdl),a
+		ld	(displacement_length),a
 		ret
 
-; opisq - is this character a string delimiter?
+; is_quote_char - is this character a string delimiter?
 ;
 ; Input:	A = a character
 ; Output:	Z set = yes, either sort. A is unchanged
 ; Modifies:	F only
 
-opisq:		cp	QUOTE1
+is_quote_char:	cp	QUOTE1
 		ret	z
 		cp	QUOTE2
 		ret
 
-; opqrun - step the cursor over a quoted run, opening delimiter to
+; skip_quoted_run - step the cursor over a quoted run, opening delimiter to
 ;   closing.
 ;
 ;   TWO DELIMITERS TOGETHER ARE ONE CHARACTER of the string and do not
@@ -462,8 +509,8 @@ opisq:		cp	QUOTE1
 ;   wrong place.
 ;
 ;   This is the program's third quote scanner, and deliberately so.
-;   splitln (fields.as) walks a raw line to find where a comment starts;
-;   dbqstr (tatara.as) walks DE and B over a DB item and counts its
+;   split_line (fields.as) walks a raw line to find where a comment starts;
+;   count_quoted_run (tatara.as) walks DE and B over a DB item and counts its
 ;   characters; this one walks the operand cursor and counts nothing.
 ;   They share a RULE, not an interface. If a fourth appears, merge all
 ;   four.
@@ -473,125 +520,143 @@ opisq:		cp	QUOTE1
 ;		field if the line ended inside the run
 ; Modifies:	AF, BC, DE, HL
 
-opqrun:		ld	de,(opptr)
+skip_quoted_run:
+		ld	de,(operand_cursor)
 		ld	a,(de)
 		ld	c,a		; C = the delimiter that opened it
 		ld	a,1
-		call	opadv
-opq.lp:		ld	a,(oplen)
+		call	operand_advance
+skip_quoted_run.scan:
+		ld	a,(operand_left)
 		or	a
 		ret	z		; the line ended inside the run
-		ld	de,(opptr)
+		ld	de,(operand_cursor)
 		ld	a,(de)
-		ld	b,a		; opadv keeps BC, so B survives it
+		ld	b,a	; operand_advance keeps BC, so B survives it
 		ld	a,1
-		call	opadv
+		call	operand_advance
 		ld	a,b
 		cp	c
-		jr	nz,opq.lp	; an ordinary character
-		ld	a,(oplen)	; a delimiter: doubled, or the end?
+		jr	nz,skip_quoted_run.scan	; an ordinary character
+		ld	a,(operand_left)
+					; a delimiter: doubled, or the end?
 		or	a
 		ret	z
-		ld	de,(opptr)
+		ld	de,(operand_cursor)
 		ld	a,(de)
 		cp	c
 		ret	nz		; something else follows: closed
 		ld	a,1
-		call	opadv		; "" - one character, and on we go
-		jr	opq.lp
+		call	operand_advance	; "" - one character, and on we go
+		jr	skip_quoted_run.scan
 
-; opany - what is the operand at the cursor?
+; read_operand - what is the operand at the cursor?
 ;
 ;   It names anything the Z80 has, and calls whatever it cannot name an
 ;   expression - so IT ALMOST NEVER FAILS, and the carry flag means only
 ;   "there is nothing here at all".
 ;
-;   That is what makes "cp (foo)" work. opany answers OK_MEM, opr8 does
-;   not want it and puts the cursor back, and cls.alu reads the same
-;   text again as an expression. Which of the two (foo) is depends on
-;   the INSTRUCTION, and the instruction is the only thing that knows.
+;   That is what makes "cp (foo)" work. read_operand answers OPERAND_MEMORY,
+;   read_byte_source does not want it and puts the cursor back, and
+;   assemble_alu reads the same text again as an expression. Which of the two
+;   (foo) is depends on the INSTRUCTION, and the instruction is the only thing
+;   that knows.
 ;
-;   IT WRITES opsave FOR EVERY OPERAND, at the start, for its own
-;   backtracking - and opr8 leans on that instead of saving again. The
-;   slot is valid from the moment opany returns until the next opany
-;   call, and nothing else writes it.
+;   IT WRITES operand_save FOR EVERY OPERAND, at the start, for its own
+;   backtracking - and read_byte_source leans on that instead of saving again.
+;   The slot is valid from the moment read_operand returns until the next
+;   read_operand call, and nothing else writes it.
 ;
 ; Input:	nothing
 ; Output:	CY set   = there is nothing here at all
-;		CY clear = (opkind), (opcod) and (opfix) describe it
+;		CY clear = (operand_kind), (operand_code) and (operand_prefix)
+;		describe it
 ; Modifies:	AF, BC, DE, HL
 
-opany:		xor	a
-		ld	(opfix),a
-		ld	(opinner),a	; nothing remembered from inside a
-		ld	(opdsp),a	;   bracket yet, and no displacement
-		call	opskip
-		ld	a,(oplen)
+read_operand:	xor	a
+		ld	(operand_prefix),a
+		ld	(inner_kind),a	; nothing remembered from inside a
+		ld	(displacement_seen),a
+					;   bracket yet, and no displacement
+		call	operand_skip_blanks
+		ld	a,(operand_left)
 		or	a
 		scf
 		ret	z		; nothing here at all
-		call	opsave
-		ld	de,(opptr)
+		call	operand_save
+		ld	de,(operand_cursor)
 		ld	a,(de)
 		cp	"("
-		jr	z,opa.par
-		ld	hl,regtab	; a bare word: whatever regtab says
-		call	opword
+		jr	z,read_operand.bracket
+		ld	hl,register_table
+				; a bare word: whatever register_table says
+		call	find_operand_word
 		ret	nc
-		jr	opa.imm
+		jr	read_operand.expression
 
-opa.par:	ld	a,1
-		call	opadv		; over the "("
-		ld	hl,regtab
-		call	opword
-		jr	c,opa.mem
-		ld	a,(opkind)
-		cp	OK_RR
-		jr	z,opa.prr
-		cp	OK_IX
-		jr	z,opa.pix
-		jr	opsinn		; (af), (i), (c): not a form, and an
+read_operand.bracket:
+		ld	a,1
+		call	operand_advance	; over the "("
+		ld	hl,register_table
+		call	find_operand_word
+		jr	c,read_operand.address
+		ld	a,(operand_kind)
+		cp	OPERAND_PAIR
+		jr	z,read_operand.bracket_pair
+		cp	OPERAND_IX
+		jr	z,read_operand.bracket_ix
+		jr	remember_inner_word
+					; (af), (i), (c): not a form, and an
 					;   expression is the honest answer -
 					;   but IN and OUT want to know that
 					;   the word in there was "C"
 
-opa.prr:	ld	a,(opcod)
+read_operand.bracket_pair:
+		ld	a,(operand_code)
 		or	a
-		jr	z,opa.pbc	; (BC)
+		jr	z,read_operand.bc	; (BC)
 		dec	a
-		jr	z,opa.pde	; (DE)
+		jr	z,read_operand.de	; (DE)
 		dec	a
-		jr	nz,opsinn	; (SP): an address to everything but
-					;   EX, which asks opissp about it
-		call	opclose		; (HL) is register code 6
-		jr	c,opa.mem
-		ld	a,OK_R8
-		ld	(opkind),a
+		jr	nz,remember_inner_word
+					; (SP): an address to everything but
+					;   EX, which asks operand_is_sp about
+					;   it
+		call	expect_close_paren	; (HL) is register code 6
+		jr	c,read_operand.address
+		ld	a,OPERAND_BYTE
+		ld	(operand_kind),a
 		ld	a,6
-		jr	opa.got
+		jr	read_operand.store_code
 
-opa.pbc:	ld	c,OK_MBC
-		jr	opa.pm
-opa.pde:	ld	c,OK_MDE
-opa.pm:		call	opclose		; opclose keeps BC
-		jr	c,opa.mem
+read_operand.bc:
+		ld	c,OPERAND_AT_BC
+		jr	read_operand.pair_address
+read_operand.de:
+		ld	c,OPERAND_AT_DE
+read_operand.pair_address:
+		call	expect_close_paren	; expect_close_paren keeps BC
+		jr	c,read_operand.address
 		ld	a,c
-		ld	(opkind),a
+		ld	(operand_kind),a
 		xor	a
-		jr	opa.got
+		jr	read_operand.store_code
 
-opa.pix:	call	opdisp
-		call	opclose
-		jr	c,opa.mem
-		ld	a,OK_IDX
-		ld	(opkind),a
+read_operand.bracket_ix:
+		call	read_displacement
+		call	expect_close_paren
+		jr	c,read_operand.address
+		ld	a,OPERAND_INDEXED
+		ld	(operand_kind),a
 		ld	a,6
-opa.got:	ld	(opcod),a
+read_operand.store_code:
+		ld	(operand_code),a
 		or	a		; or a clears CY whatever A holds
 		ret
 
-; opsinn - opany found a word inside the brackets and is about to call
-;   the whole thing an address anyway. Keep what regtab said about it.
+; remember_inner_word - read_operand found a word inside the brackets and is
+; about to call the whole thing an address anyway. Keep what register_table
+; said about it.
 ;
 ;   This is the whole of the answer to "(C)" and "(SP)". Giving them
 ;   kinds of their own would have been simpler to read and WRONG: M80
@@ -599,33 +664,37 @@ opa.got:	ld	(opcod),a
 ;   (C) refuses a line M80 takes. The word is remembered, not
 ;   reclassified, and the three instructions that care ask.
 ;
-;   Valid from the moment opany returns until the next opany - the same
-;   lifetime as opsave's slot, and for the same reason.
+;   Valid from the moment read_operand returns until the next read_operand -
+;   the same lifetime as operand_save's slot, and for the same reason.
 
-opsinn:		ld	a,(opkind)
-		ld	(opinner),a
-		ld	a,(opcod)
-		ld	(opincod),a
-		; and on into opa.mem
+remember_inner_word:
+		ld	a,(operand_kind)
+		ld	(inner_kind),a
+		ld	a,(operand_code)
+		ld	(inner_code),a
+		; and on into read_operand.address
 
-opa.mem:	call	oprest		; back to the "(", and take the
-		call	opexp		;   whole thing as an address
+read_operand.address:
+		call	operand_restore	; back to the "(", and take the
+		call	skip_expression	;   whole thing as an address
 		ret	c
-		ld	a,OK_MEM
-		jr	opa.kind
+		ld	a,OPERAND_MEMORY
+		jr	read_operand.store_kind
 
-opa.imm:	call	opexp		; not a register word: an expression
+read_operand.expression:
+		call	skip_expression	; not a register word: an expression
 		ret	c
-		ld	a,OK_IMM
-opa.kind:	ld	(opkind),a
+		ld	a,OPERAND_IMM
+read_operand.store_kind:
+		ld	(operand_kind),a
 		xor	a		; no code, and CY cleared with it -
-		ld	(opcod),a	;   ld (nn),a touches no flags
+		ld	(operand_code),a	;   ld (nn),a touches no flags
 		ret
 
-; opisc, opissp - was the operand opany last returned the literal "(C)"
-;   or the literal "(SP)"?
+; operand_is_c, operand_is_sp - was the operand read_operand last returned the
+; literal "(C)" or the literal "(SP)"?
 ;
-;   Both come back as OK_MEM, because they are addresses to every
+;   Both come back as OPERAND_MEMORY, because they are addresses to every
 ;   instruction but three. IN and OUT want (C); EX wants (SP); nothing
 ;   else may be allowed to notice, or "ld a,(c)" stops being the
 ;   absolute load M80 makes of it.
@@ -634,21 +703,21 @@ opa.kind:	ld	(opkind),a
 ; Output:	Z set = yes
 ; Modifies:	AF
 
-opisc:		ld	a,(opinner)
-		cp	OK_R8
+operand_is_c:	ld	a,(inner_kind)
+		cp	OPERAND_BYTE
 		ret	nz
-		ld	a,(opincod)
+		ld	a,(inner_code)
 		cp	1		; C is register code 1
 		ret
 
-opissp:		ld	a,(opinner)
-		cp	OK_RR
+operand_is_sp:	ld	a,(inner_kind)
+		cp	OPERAND_PAIR
 		ret	nz
-		ld	a,(opincod)
+		ld	a,(inner_code)
 		cp	3		; SP is pair code 3
 		ret
 
-; opnodsp - did the indexed operand opany last returned carry NO
+; no_displacement - did the indexed operand read_operand last returned carry NO
 ;   displacement?
 ;
 ;   Only JP asks, and only JP can. Everywhere else the displacement
@@ -661,11 +730,13 @@ opissp:		ld	a,(opinner)
 ; Output:	Z set = there was no displacement
 ; Modifies:	AF
 
-opnodsp:	ld	a,(opdsp)
+no_displacement:
+		ld	a,(displacement_seen)
 		or	a
 		ret
 
-; opxtext, opdtext - the text opexp and opdisp stepped over.
+; expression_text, displacement_text - the text skip_expression and
+; read_displacement stepped over.
 ;
 ;   A handler parses ALL its operands and only then emits, because the
 ;   prefix goes out before the opcode and is not known until the
@@ -675,13 +746,13 @@ opnodsp:	ld	a,(opdsp)
 ;   TWO SLOTS AND NOT AN ARRAY. The most expressions any Z80
 ;   instruction has is two - "bit 7,(ix+5)" and "ld (ix+0),9" - and in
 ;   both the second is the displacement, which has a slot of its own
-;   because opdisp is what found it. No instruction has two general
+;   because read_displacement is what found it. No instruction has two general
 ;   expressions. DB, DW and DC have as many as you like and need
-;   neither slot: dbwalk visits items one at a time and emits each
+;   neither slot: walk_data_items visits items one at a time and emits each
 ;   before measuring the next.
 ;
 ;   Valid from the moment the handler's parsing is done until the next
-;   line - the same lifetime as opsave's slot and opinner's, and they
+;   line - the same lifetime as operand_save's slot and inner_kind's, and they
 ;   live beside them for that reason.
 ;
 ;   Routines and not exported bytes, because a module reaching into
@@ -690,18 +761,20 @@ opnodsp:	ld	a,(opdsp)
 ;
 ; Input:	nothing
 ; Output:	DE -> the text, A = how long it is
-;		opdtext answers A = 0 when there was no displacement
+;		displacement_text answers A = 0 when there was no displacement
 ; Modifies:	AF, DE
 
-opxtext:	ld	de,(opxp)
-		ld	a,(opxl)
+expression_text:
+		ld	de,(expression_at)
+		ld	a,(expression_length)
 		ret
 
-opdtext:	ld	de,(opdp)
-		ld	a,(opdl)
+displacement_text:
+		ld	de,(displacement_at)
+		ld	a,(displacement_length)
 		ret
 
-; opccm - a condition AND the comma after it.
+; condition_and_comma - a condition AND the comma after it.
 ;
 ;   The two together, never one at a time: "jp z,foo" is the
 ;   conditional jump and "jp z" is a jump to a symbol called Z. Only
@@ -709,62 +782,67 @@ opdtext:	ld	de,(opdp)
 ;   one is not a condition, and the cursor goes back.
 ;
 ;   JP, JR and CALL are the three that ask. RET does not: "ret z" has
-;   no comma and no second operand, so cctab alone answers it.
+;   no comma and no second operand, so condition_table alone answers it.
 ;
 ; Input:	nothing
 ; Output:	CY set   = not a condition and a comma, and the cursor
 ;			   has not moved
 ;		CY clear = it was, the cursor is past the comma, and
-;			   (opcod) is the condition code
+;			   (operand_code) is the condition code
 ; Modifies:	AF, BC, DE, HL
 
-opccm:		call	opsave
-		ld	hl,cctab
-		call	opword
+condition_and_comma:
+		call	operand_save
+		ld	hl,condition_table
+		call	find_operand_word
 		ret	c		; not a condition word at all
-		call	opcomma
+		call	expect_comma
 		ret	nc		; a condition and a comma: the
-		call	oprest		;   conditional form. Without the
+		call	operand_restore	;   conditional form. Without the
 		scf			;   comma it was a symbol that
 		ret			;   happens to be named Z, C or M
 
-; opr8 - an 8-bit source: a register, (HL), an indexed operand, or an
-;   index half.
+; read_byte_source - an 8-bit source: a register, (HL), an indexed operand, or
+; an index half.
 ;
 ;   AN INDEX HALF IS NOT SAFE EVERYWHERE THIS ROUTINE IS CALLED. It
-;   comes back as OK_R8X with opfix set, so a handler that emits through
-;   emitop is right without knowing it exists - and cls.rot, which
-;   cannot use emitop, has to refuse it by hand. 104 has the four
+;   comes back as OPERAND_HALF with operand_prefix set, so a handler that emits
+;   through emit_opcode is right without knowing it exists - and assemble_rot,
+;   which cannot use emit_opcode, has to refuse it by hand. 104 has the four
 ;   handlers this routine serves and what each of them does with it.
 ;
 ;   (IX+d) IS (HL) with a prefix in front and a byte after. Both answer
 ;   code 6, which is the whole of the indexed forms - everything else
 ;   about them is the two extra bytes, and clsxtra adds those.
 ;
-;   A filter on opany, not a parser of its own: on anything else it puts
-;   the cursor back to where opany found the operand, so that the caller
+;   A filter on read_operand, not a parser of its own: on anything else it puts
+;   the cursor back to where read_operand found the operand, so that the caller
 ;   can read the same text as an expression instead.
 ;
 ; Input:	nothing
 ; Output:	CY set   = not one of those, and the cursor has not moved
-;		CY clear = (opkind) is OK_R8 or OK_IDX, (opcod) is the
-;			   code, (opfix) the prefix or 0
+;		CY clear = (operand_kind) is OPERAND_BYTE or OPERAND_INDEXED,
+;		(operand_code)
+;		is the
+;			   code, (operand_prefix) the prefix or 0
 ; Modifies:	AF, BC, DE, HL
 
-opr8:		call	opany
+read_byte_source:
+		call	read_operand
 		ret	c		; nothing there at all
-		ld	a,(opkind)
-		cp	OK_R8
+		ld	a,(operand_kind)
+		cp	OPERAND_BYTE
 		ret	z
-		cp	OK_IDX
+		cp	OPERAND_INDEXED
 		ret	z
-		cp	OK_R8X		; an index half is an 8-bit source
-		ret	z		;   wherever emitop does the emitting
-		call	oprest		; opany's own save still points at
+		cp	OPERAND_HALF	; an index half is an 8-bit source
+		ret	z	;   wherever emit_opcode does the emitting
+		call	operand_restore
+				; read_operand's own save still points at
 		scf			;   the start of this operand
 		ret
 
-; opexp - step over an expression: the rest of the operand field.
+; skip_expression - step over an expression: the rest of the operand field.
 ;
 ;   Pass 1 does not READ it. How much room an instruction takes does not
 ;   depend on what its operand is worth, so the text is skipped here and
@@ -774,83 +852,101 @@ opr8:		call	opany
 ;   run does not count, so "ld (','),a" reads the way it looks. LD
 ;   needed that for its first operand, and it is an improvement
 ;   everywhere else: "cp 1,2" used to size as two quiet bytes and is now
-;   an error, because opnone finds the ",2" left over.
+;   an error, because operand_must_end finds the ",2" left over.
 ;
 ; Output:	CY set = there was nothing there
 ; Modifies:	AF, BC, DE, HL
 
-opexp:		call	opskip
-		ld	a,(oplen)
+skip_expression:
+		call	operand_skip_blanks
+		ld	a,(operand_left)
 		or	a
 		scf
 		ret	z		; an operand that is not there
-		ld	hl,(opptr)	; WHERE it starts. Measuring had to
-		ld	(opxp),hl	;   step over it; emitting has to come
+		ld	hl,(operand_cursor)
+					; WHERE it starts. Measuring had to
+		ld	(expression_at),hl
+					;   step over it; emitting has to come
 					;   back and evaluate it, by which time
 					;   the cursor is long past
-opx.lp:		ld	a,(oplen)
+skip_expression.scan:
+		ld	a,(operand_left)
 		or	a
-		jr	z,opx.end
-		ld	de,(opptr)
+		jr	z,skip_expression.done
+		ld	de,(operand_cursor)
 		ld	a,(de)
 		cp	","
-		jr	z,opx.end	; it belongs to the next operand
-		call	opisq
-		jr	nz,opx.one
-		call	opqrun		; a comma inside a quoted run does
-		jr	opx.lp		;   not end anything
-opx.one:	ld	a,1
-		call	opadv
-		jr	opx.lp
-opx.end:	ld	hl,(opptr)	; and how long it turned out to be
-		ld	de,(opxp)
+		jr	z,skip_expression.done
+					; it belongs to the next operand
+		call	is_quote_char
+		jr	nz,skip_expression.step
+		call	skip_quoted_run	; a comma inside a quoted run does
+		jr	skip_expression.scan	;   not end anything
+skip_expression.step:
+		ld	a,1
+		call	operand_advance
+		jr	skip_expression.scan
+skip_expression.done:
+		ld	hl,(operand_cursor)
+					; and how long it turned out to be
+		ld	de,(expression_at)
 		or	a
 		sbc	hl,de
 		ld	a,l		; an operand field is 255 at most, so
-		ld	(opxl),a	;   L is all of it
+		ld	(expression_length),a	;   L is all of it
 		or	a		; CY clear = there was an expression
 		ret
 
-; opcomma - step over a comma.
+; expect_comma - step over a comma.
 ;
 ; Output:	CY set = there is not one here
 ; Modifies:	AF, DE, HL
 
-opcomma:	call	opskip
-		ld	a,(oplen)
+expect_comma:	call	operand_skip_blanks
+		ld	a,(operand_left)
 		or	a
 		scf
 		ret	z
-		ld	de,(opptr)
+		ld	de,(operand_cursor)
 		ld	a,(de)
 		cp	","
 		scf
 		ret	nz
 		ld	a,1
-		call	opadv
+		call	operand_advance
 		or	a
 		ret
 
 		dseg
 
-opptr:		defs	2	; the operand cursor: where the unread
-oplen:		defs	1	;   text starts, and how much is left
-opsptr:		defs	2	; opsave's copy of it, for opr8
-opslen:		defs	1
-opwtab:		defs	2	; opword: which table, across opwmeas
-opwn:		defs	1	;   and how long the word is
-opkind:		defs	1	; what the last operand turned out to
-opcod:		defs	1	;   be, the code it contributes, and
-opfix:		defs	1	;   the prefix it forces
-opinner:	defs	1	; what regtab said about the word inside
-opincod:	defs	1	;   a "(...)" that turned out to be an
-				;   address anyway - see opsinn
-opdsp:		defs	1	; did the indexed operand carry a
+operand_cursor:	defs	2	; the operand cursor: where the unread
+operand_left:	defs	1	;   text starts, and how much is left
+saved_cursor:	defs	2
+			; operand_save's copy of it, for read_byte_source
+saved_left:	defs	1
+word_table:	defs	2
+		; find_operand_word: which table, across measure_operand_word
+operand_word_length:
+		defs	1	;   and how long the word is
+operand_kind:	defs	1	; what the last operand turned out to
+operand_code:	defs	1	;   be, the code it contributes, and
+operand_prefix:	defs	1	;   the prefix it forces
+inner_kind:	defs	1
+			; what register_table said about the word inside
+inner_code:	defs	1	;   a "(...)" that turned out to be an
+				;   address anyway - see remember_inner_word
+displacement_seen:
+		defs	1	; did the indexed operand carry a
 				;   displacement? Only JP asks
-opxp:		defs	2	; opexp: where the expression it stepped
-opxl:		defs	1	;   over began, and how long it was
-opdp:		defs	2	; opdisp: the same for a displacement,
-opdl:		defs	1	;   where 0 long means there was none
+expression_at:	defs	2
+			; skip_expression: where the expression it stepped
+expression_length:
+		defs	1	;   over began, and how long it was
+displacement_at:
+		defs	2
+			; read_displacement: the same for a displacement,
+displacement_length:
+		defs	1	;   where 0 long means there was none
 
 ; The table. A length byte, the name in UPPER CASE, the class, and the
 ; base opcode. A length byte of 0 ends it.
@@ -865,138 +961,141 @@ opdl:		defs	1	;   where 0 long means there was none
 ; here yet is not recognised, so its line passes through as text - which
 ; is what Tatara has always done with a line it does not understand.
 
-optab:		defb	3,	"NOP",	C_NONE,		000h
-		defb	4,	"HALT",	C_NONE,		076h
-		defb	2,	"DI",	C_NONE,		0f3h
-		defb	2,	"EI",	C_NONE,		0fbh
-		defb	3,	"EXX",	C_NONE,		0d9h
-		defb	3,	"DAA",	C_NONE,		027h
-		defb	3,	"CPL",	C_NONE,		02fh
-		defb	3,	"SCF",	C_NONE,		037h
-		defb	3,	"CCF",	C_NONE,		03fh
-		defb	4,	"RLCA",	C_NONE,		007h
-		defb	4,	"RRCA",	C_NONE,		00fh
-		defb	3,	"RLA",	C_NONE,		017h
-		defb	3,	"RRA",	C_NONE,		01fh
+mnemonic_table:
+		defb	3,	"NOP",	CLASS_NONE,	000h
+		defb	4,	"HALT",	CLASS_NONE,	076h
+		defb	2,	"DI",	CLASS_NONE,	0f3h
+		defb	2,	"EI",	CLASS_NONE,	0fbh
+		defb	3,	"EXX",	CLASS_NONE,	0d9h
+		defb	3,	"DAA",	CLASS_NONE,	027h
+		defb	3,	"CPL",	CLASS_NONE,	02fh
+		defb	3,	"SCF",	CLASS_NONE,	037h
+		defb	3,	"CCF",	CLASS_NONE,	03fh
+		defb	4,	"RLCA",	CLASS_NONE,	007h
+		defb	4,	"RRCA",	CLASS_NONE,	00fh
+		defb	3,	"RLA",	CLASS_NONE,	017h
+		defb	3,	"RRA",	CLASS_NONE,	01fh
 
-		defb	3,	"NEG",	C_NONED,	044h
-		defb	4,	"RETI",	C_NONED,	04dh
-		defb	4,	"RETN",	C_NONED,	045h
-		defb	3,	"RLD",	C_NONED,	06fh
-		defb	3,	"RRD",	C_NONED,	067h
-		defb	3,	"LDI",	C_NONED,	0a0h
-		defb	3,	"LDD",	C_NONED,	0a8h
-		defb	4,	"LDIR",	C_NONED,	0b0h
-		defb	4,	"LDDR",	C_NONED,	0b8h
-		defb	3,	"CPI",	C_NONED,	0a1h
-		defb	3,	"CPD",	C_NONED,	0a9h
-		defb	4,	"CPIR",	C_NONED,	0b1h
-		defb	4,	"CPDR",	C_NONED,	0b9h
-		defb	3,	"INI",	C_NONED,	0a2h
-		defb	3,	"IND",	C_NONED,	0aah
-		defb	4,	"INIR",	C_NONED,	0b2h
-		defb	4,	"INDR",	C_NONED,	0bah
-		defb	4,	"OUTI",	C_NONED,	0a3h
-		defb	4,	"OUTD",	C_NONED,	0abh
-		defb	4,	"OTIR",	C_NONED,	0b3h
-		defb	4,	"OTDR",	C_NONED,	0bbh
+		defb	3,	"NEG",	CLASS_NONE_ED,	044h
+		defb	4,	"RETI",	CLASS_NONE_ED,	04dh
+		defb	4,	"RETN",	CLASS_NONE_ED,	045h
+		defb	3,	"RLD",	CLASS_NONE_ED,	06fh
+		defb	3,	"RRD",	CLASS_NONE_ED,	067h
+		defb	3,	"LDI",	CLASS_NONE_ED,	0a0h
+		defb	3,	"LDD",	CLASS_NONE_ED,	0a8h
+		defb	4,	"LDIR",	CLASS_NONE_ED,	0b0h
+		defb	4,	"LDDR",	CLASS_NONE_ED,	0b8h
+		defb	3,	"CPI",	CLASS_NONE_ED,	0a1h
+		defb	3,	"CPD",	CLASS_NONE_ED,	0a9h
+		defb	4,	"CPIR",	CLASS_NONE_ED,	0b1h
+		defb	4,	"CPDR",	CLASS_NONE_ED,	0b9h
+		defb	3,	"INI",	CLASS_NONE_ED,	0a2h
+		defb	3,	"IND",	CLASS_NONE_ED,	0aah
+		defb	4,	"INIR",	CLASS_NONE_ED,	0b2h
+		defb	4,	"INDR",	CLASS_NONE_ED,	0bah
+		defb	4,	"OUTI",	CLASS_NONE_ED,	0a3h
+		defb	4,	"OUTD",	CLASS_NONE_ED,	0abh
+		defb	4,	"OTIR",	CLASS_NONE_ED,	0b3h
+		defb	4,	"OTDR",	CLASS_NONE_ED,	0bbh
 
-		defb	3,	"ADD",	C_ALUA,		080h
-		defb	3,	"ADC",	C_ALUA,		088h
-		defb	3,	"SBC",	C_ALUA,		098h
-		defb	3,	"SUB",	C_ALU,		090h
-		defb	3,	"AND",	C_ALU,		0a0h
-		defb	3,	"XOR",	C_ALU,		0a8h
-		defb	2,	"OR",	C_ALU,		0b0h
-		defb	2,	"CP",	C_ALU,		0b8h
+		defb	3,	"ADD",	CLASS_ARITH,	080h
+		defb	3,	"ADC",	CLASS_ARITH,	088h
+		defb	3,	"SBC",	CLASS_ARITH,	098h
+		defb	3,	"SUB",	CLASS_ALU,	090h
+		defb	3,	"AND",	CLASS_ALU,	0a0h
+		defb	3,	"XOR",	CLASS_ALU,	0a8h
+		defb	2,	"OR",	CLASS_ALU,	0b0h
+		defb	2,	"CP",	CLASS_ALU,	0b8h
 
-		defb	3,	"INC",	C_INCDEC,	004h
-		defb	3,	"DEC",	C_INCDEC,	005h
+		defb	3,	"INC",	CLASS_INCDEC,	004h
+		defb	3,	"DEC",	CLASS_INCDEC,	005h
 
-		defb	4,	"PUSH",	C_STACK,	0c5h
-		defb	3,	"POP",	C_STACK,	0c1h
-		defb	3,	"RET",	C_RET,		0c9h
-		defb	3,	"RST",	C_RST,		0c7h
-		defb	2,	"IM",	C_IM,		046h
+		defb	4,	"PUSH",	CLASS_STACK,	0c5h
+		defb	3,	"POP",	CLASS_STACK,	0c1h
+		defb	3,	"RET",	CLASS_RET,	0c9h
+		defb	3,	"RST",	CLASS_RST,	0c7h
+		defb	2,	"IM",	CLASS_IM,	046h
 
-		defb	2,	"LD",	C_LD,		000h
+		defb	2,	"LD",	CLASS_LD,	000h
 
-		defb	3,	"BIT",	C_BIT,		040h
-		defb	3,	"RES",	C_BIT,		080h
-		defb	3,	"SET",	C_BIT,		0c0h
+		defb	3,	"BIT",	CLASS_BIT,	040h
+		defb	3,	"RES",	CLASS_BIT,	080h
+		defb	3,	"SET",	CLASS_BIT,	0c0h
 
-		defb	3,	"RLC",	C_ROT,		000h
-		defb	3,	"RRC",	C_ROT,		008h
-		defb	2,	"RL",	C_ROT,		010h
-		defb	2,	"RR",	C_ROT,		018h
-		defb	3,	"SLA",	C_ROT,		020h
-		defb	3,	"SRA",	C_ROT,		028h
-		defb	3,	"SLL",	C_ROT,		030h
-		defb	3,	"SRL",	C_ROT,		038h
+		defb	3,	"RLC",	CLASS_ROT,	000h
+		defb	3,	"RRC",	CLASS_ROT,	008h
+		defb	2,	"RL",	CLASS_ROT,	010h
+		defb	2,	"RR",	CLASS_ROT,	018h
+		defb	3,	"SLA",	CLASS_ROT,	020h
+		defb	3,	"SRA",	CLASS_ROT,	028h
+		defb	3,	"SLL",	CLASS_ROT,	030h
+		defb	3,	"SRL",	CLASS_ROT,	038h
 
-		defb	2,	"JP",	C_JP,		0c3h
-		defb	2,	"JR",	C_JR,		018h
-		defb	4,	"DJNZ",	C_DJNZ,	010h
-		defb	4,	"CALL",	C_CALL,	0cdh
+		defb	2,	"JP",	CLASS_JP,	0c3h
+		defb	2,	"JR",	CLASS_JR,	018h
+		defb	4,	"DJNZ",	CLASS_DJNZ,	010h
+		defb	4,	"CALL",	CLASS_CALL,	0cdh
 
-		defb	2,	"EX",	C_EX,		000h
-		defb	2,	"IN",	C_IN,		000h
-		defb	3,	"OUT",	C_OUT,		000h
+		defb	2,	"EX",	CLASS_EX,	000h
+		defb	2,	"IN",	CLASS_IN,	000h
+		defb	3,	"OUT",	CLASS_OUT,	000h
 
-		defb	5,	"MULUB",C_MULUB,	0c1h
-		defb	5,	"MULUW",C_MULUW,	0c3h
+		defb	5,	"MULUB",CLASS_MULUB,	0c1h
+		defb	5,	"MULUW",CLASS_MULUW,	0c3h
 
 		defb	0		; the end of the table. SIXTY-NINE rows
 					;   above it, and measuring is complete
 
-; The operand words, and the conditions, in the same row shape as optab:
-; a length byte, the name in UPPER CASE, a kind, and a code.
+; The operand words, and the conditions, in the same row shape as
+; mnemonic_table: a length byte, the name in UPPER CASE, a kind, and a code.
 ;
 ; TWO TABLES, NOT ONE WITH A MASK. C is register code 1 here and
-; condition code 3 in cctab, and nothing has to decide which - the
+; condition code 3 in condition_table, and nothing has to decide which - the
 ; handler knows what it is asking for, because the grammar it implements
 ; says so. optable-design.md 7 has the argument.
 ;
-; IX and IY hold their PREFIX in the code column. opword turns that into
-; opfix and gives them HL's pair code, 2.
+; IX and IY hold their PREFIX in the code column. find_operand_word turns that
+; into operand_prefix and gives them HL's pair code, 2.
 ;
 ; THE FOUR INDEX HALVES ARE THE OTHER WAY ROUND. Their code is 4 or 5 -
 ; H's and L's, because the prefix is all that tells them apart from H
 ; and L - so the column holds the CODE and the KIND holds the prefix.
-; opword normalises both to OK_R8X. A handler that wants them says so
-; once; every handler that does not, and there are eight, refuses them
-; by testing OK_R8 as it always did. 104 has the argument.
+; find_operand_word normalises both to OPERAND_HALF. A handler that wants them
+; says so once; every handler that does not, and there are eight, refuses them
+; by testing OPERAND_BYTE as it always did. 104 has the argument.
 
-regtab:		defb	1,	"B",	OK_R8,	0
-		defb	1,	"C",	OK_R8,	1
-		defb	1,	"D",	OK_R8,	2
-		defb	1,	"E",	OK_R8,	3
-		defb	1,	"H",	OK_R8,	4
-		defb	1,	"L",	OK_R8,	5
-		defb	1,	"A",	OK_R8,	7
-		defb	2,	"BC",	OK_RR,	0
-		defb	2,	"DE",	OK_RR,	1
-		defb	2,	"HL",	OK_RR,	2
-		defb	2,	"SP",	OK_RR,	3
-		defb	2,	"AF",	OK_AF,	3
-		defb	3,	"AF'",	OK_AFP,	0
-		defb	2,	"IX",	OK_IX,	0ddh
-		defb	2,	"IY",	OK_IX,	0fdh
-		defb	3,	"IXH",	OK_R8IX,	4
-		defb	3,	"IXL",	OK_R8IX,	5
-		defb	3,	"IYH",	OK_R8IY,	4
-		defb	3,	"IYL",	OK_R8IY,	5
-		defb	1,	"I",	OK_I,	0
-		defb	1,	"R",	OK_R,	0
+register_table:
+		defb	1,	"B",	OPERAND_BYTE,	0
+		defb	1,	"C",	OPERAND_BYTE,	1
+		defb	1,	"D",	OPERAND_BYTE,	2
+		defb	1,	"E",	OPERAND_BYTE,	3
+		defb	1,	"H",	OPERAND_BYTE,	4
+		defb	1,	"L",	OPERAND_BYTE,	5
+		defb	1,	"A",	OPERAND_BYTE,	7
+		defb	2,	"BC",	OPERAND_PAIR,	0
+		defb	2,	"DE",	OPERAND_PAIR,	1
+		defb	2,	"HL",	OPERAND_PAIR,	2
+		defb	2,	"SP",	OPERAND_PAIR,	3
+		defb	2,	"AF",	OPERAND_AF,	3
+		defb	3,	"AF'",	OPERAND_AF_ALT,	0
+		defb	2,	"IX",	OPERAND_IX,	0ddh
+		defb	2,	"IY",	OPERAND_IX,	0fdh
+		defb	3,	"IXH",	OPERAND_IX_HALF,	4
+		defb	3,	"IXL",	OPERAND_IX_HALF,	5
+		defb	3,	"IYH",	OPERAND_IY_HALF,	4
+		defb	3,	"IYL",	OPERAND_IY_HALF,	5
+		defb	1,	"I",	OPERAND_I,	0
+		defb	1,	"R",	OPERAND_R,	0
 		defb	0		; the end of the table
 
-cctab:		defb	2,	"NZ",	OK_CC,	0
-		defb	1,	"Z",	OK_CC,	1
-		defb	2,	"NC",	OK_CC,	2
-		defb	1,	"C",	OK_CC,	3
-		defb	2,	"PO",	OK_CC,	4
-		defb	2,	"PE",	OK_CC,	5
-		defb	1,	"P",	OK_CC,	6
-		defb	1,	"M",	OK_CC,	7
+condition_table:
+		defb	2,	"NZ",	OPERAND_COND,	0
+		defb	1,	"Z",	OPERAND_COND,	1
+		defb	2,	"NC",	OPERAND_COND,	2
+		defb	1,	"C",	OPERAND_COND,	3
+		defb	2,	"PO",	OPERAND_COND,	4
+		defb	2,	"PE",	OPERAND_COND,	5
+		defb	1,	"P",	OPERAND_COND,	6
+		defb	1,	"M",	OPERAND_COND,	7
 		defb	0		; the end of the table
 

@@ -1,4 +1,4 @@
-; C_LD: the pairs, SP and the index registers. "ld hl,(nn)" is THREE
+; CLASS_LD: the pairs, SP and the index registers. "ld hl,(nn)" is THREE
 ; bytes and every other pair is four: 2Ah exists for HL alone, and
 ; choosing wrongly here is a wrong LENGTH, not a wasted byte
 	aseg

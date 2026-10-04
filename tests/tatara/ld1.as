@@ -1,4 +1,4 @@
-; C_LD: the destination is a register or (HL). Register code 6 IS
+; CLASS_LD: the destination is a register or (HL). Register code 6 IS
 ; (HL), which is why "ld (hl),(hl)" has to be refused: that encoding
 ; is HALT
 	aseg

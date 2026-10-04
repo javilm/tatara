@@ -4,11 +4,11 @@
 ; The file exists for a nine-byte routine, which needs saying out loud.
 ; Four modules had their own copy of the same fold - cpupper in
 ; cmdline.as, dirupr in dirtab.as, mdupr in macros.as, and a fifth written
-; into putszu's loop in msxdos.as - and a sixth was nearly typed when
-; cond.as wanted a case-insensitive compare for IFIDN. dirupr was made
-; global instead, which worked, but left cond.as and expr.as depending on
-; the DIRECTIVE TABLE for a general string utility. That is the wrong
-; shape, and it is the thing this file fixes.
+; into print_zero_string_upper's loop in msxdos.as - and a sixth was nearly
+; typed when cond.as wanted a case-insensitive compare for IFIDN. dirupr was
+; made global instead, which worked, but left cond.as and expr.as depending on
+; the DIRECTIVE TABLE for a general string utility. That is the wrong shape,
+; and it is the thing this file fixes.
 ;
 ; It is not a size win. One shared copy plus six calls costs about what
 ; the copies did. What it buys is one answer to "where is the case fold"
@@ -16,25 +16,25 @@
 ; to be a compare and a copy when something needs them
 ; twice. Nothing is written here before it has two callers.
 
-STRLIB		equ	1		; skips the external in strutil.inc
+STRUTIL_INCLUDED	equ	1	; skips the external in strutil.inc
 
-		public	strabs
-		public	strdirl
-		public	strcomp
-		public	strbuf
-		public	strupr
-		public	strdot
-		public	strhex
-		public	strext
-		public	numdec
-		public	numhex
-		public	numhex2
+		public	is_absolute_name
+		public	directory_length
+		public	compose_path
+		public	path_buffer
+		public	fold_to_upper
+		public	find_extension
+		public	parse_hex_number
+		public	add_default_extension
+		public	build_decimal
+		public	build_hex_word
+		public	build_hex_byte
 
 		include	strutil.inc
 
 		cseg
 
-; strhex - one to four hex digits, as a number.
+; parse_hex_number - one to four hex digits, as a number.
 ;
 ;   NO SUFFIX AND NO DECIMAL. M80 writes 0C000h because an expression
 ;   has to tell a number from a symbol; a command-line option has no
@@ -48,27 +48,30 @@ STRLIB		equ	1		; skips the external in strutil.inc
 ;		CY set   = it is not one to four hex digits
 ; Modifies:	AF, BC, DE, HL
 
-strhex:		ld	hl,0
+parse_hex_number:
+		ld	hl,0
 		ld	b,0		; how many digits so far
-strh.lp:	ld	a,(de)
+parse_hex_number.loop:
+		ld	a,(de)
 		or	a
-		jr	z,strh.end
+		jr	z,parse_hex_number.done
 		ld	a,b
 		cp	4
 		scf
 		ret	z		; a fifth: not an address
 		ld	a,(de)
-		call	strupr
+		call	fold_to_upper
 		sub	"0"
-		jr	c,strh.bad
+		jr	c,parse_hex_number.bad
 		cp	10
-		jr	c,strh.dig
+		jr	c,parse_hex_number.digit
 		sub	"A"-"0"		; the seven characters between
-		jr	c,strh.bad	;   "9" and "A" land here
+		jr	c,parse_hex_number.bad	;   "9" and "A" land here
 		cp	6
-		jr	nc,strh.bad
+		jr	nc,parse_hex_number.bad
 		add	a,10
-strh.dig:	add	hl,hl		; times sixteen
+parse_hex_number.digit:
+		add	hl,hl		; times sixteen
 		add	hl,hl
 		add	hl,hl
 		add	hl,hl
@@ -78,17 +81,19 @@ strh.dig:	add	hl,hl		; times sixteen
 		ld	l,a
 		inc	b
 		inc	de
-		jr	strh.lp
-strh.end:	ld	a,b
+		jr	parse_hex_number.loop
+parse_hex_number.done:
+		ld	a,b
 		or	a
 		scf
 		ret	z		; "/P:" with nothing after it
 		or	a		; CY clear: HL is the number
 		ret
-strh.bad:	scf
+parse_hex_number.bad:
+		scf
 		ret
 
-; strdot - where a filename's extension starts.
+; find_extension - where a filename's extension starts.
 ;
 ;   THE LAST DOT AFTER THE LAST SEPARATOR. A separator resets the
 ;   search, because the dot in "A:\V1.0\FOO" belongs to the directory
@@ -99,8 +104,8 @@ strh.bad:	scf
 ;   MS-DOS's way of saying "no extension, and I mean it".
 ;
 ;   IT ANSWERS WITH A POSITION rather than a yes or no, because its
-;   callers want different things of it: strext wants to know whether
-;   there is one, and lcmodef wants to cut it off.
+;   callers want different things of it: add_default_extension wants to know
+;   whether there is one, and default_output_name wants to cut it off.
 ;
 ;   This was lcmdot in lcmd.as, and moved here because
 ;   arglist.as needs it for ".lnk" and sits below lcmd.as.
@@ -110,24 +115,30 @@ strh.bad:	scf
 ;		CY set   = it has none, and HL -> the terminator
 ; Modifies:	AF, BC, DE, HL
 
-strdot:		ex	de,hl
+find_extension:	ex	de,hl
 		ld	bc,0		; BC -> the dot, 0 until one is seen
-strd.sc:	ld	a,(hl)
+find_extension.scan:
+		ld	a,(hl)
 		or	a
-		jr	z,strd.end
+		jr	z,find_extension.done
 		cp	"."
-		jr	nz,strd.n1
+		jr	nz,find_extension.not_dot
 		ld	c,l
 		ld	b,h
-		jr	strd.nx
-strd.n1:	cp	05ch		; the backslash, by its code: written
-		jr	z,strd.dir	;   as a character it would sit
+		jr	find_extension.next
+find_extension.not_dot:
+		cp	05ch		; the backslash, by its code: written
+		jr	z,find_extension.separator
+					;   as a character it would sit
 		cp	":"		;   awkwardly in this file
-		jr	nz,strd.nx
-strd.dir:	ld	bc,0		; A SEPARATOR RESETS IT
-strd.nx:	inc	hl
-		jr	strd.sc
-strd.end:	ld	a,b
+		jr	nz,find_extension.next
+find_extension.separator:
+		ld	bc,0		; A SEPARATOR RESETS IT
+find_extension.next:
+		inc	hl
+		jr	find_extension.scan
+find_extension.done:
+		ld	a,b
 		or	c
 		scf
 		ret	z		; no dot: HL is the terminator
@@ -136,7 +147,7 @@ strd.end:	ld	a,b
 		or	a
 		ret
 
-; strext - a default extension, on a name that has none.
+; add_default_extension - a default extension, on a name that has none.
 ;
 ;   This was lcmextx in lcmd.as.
 ;
@@ -145,8 +156,9 @@ strd.end:	ld	a,b
 ; Output:	it is appended if the name had none
 ; Modifies:	AF, BC, DE, HL
 
-strext:		push	hl
-		call	strdot
+add_default_extension:
+		push	hl
+		call	find_extension
 		pop	de		; DE -> the extension
 		ret	nc		; it has one: leave the name alone
 		ex	de,hl		; HL -> the extension, DE -> the end
@@ -154,7 +166,7 @@ strext:		push	hl
 		ldir
 		ret
 
-; strupr - fold the character in A from a-z to A-Z; anything else passes
+; fold_to_upper - fold the character in A from a-z to A-Z; anything else passes
 ;   through unchanged.
 ;
 ;   The 26 ASCII letters and nothing else, which is what M80 folds. A
@@ -165,17 +177,17 @@ strext:		push	hl
 ; Output:	A = folded character
 ; Modifies:	AF
 
-strupr:		cp	"a"
+fold_to_upper:	cp	"a"
 		ret	c		; below "a" -> leave it alone
 		cp	"z"+1
 		ret	nc		; above "z" -> leave it alone
 		sub	"a"-"A"
 		ret
 
-; numdec - HL as decimal digits, with no leading zeros, into a buffer.
+; build_decimal - HL as decimal digits, with no leading zeros, into a buffer.
 ;
 ;   Subtract-and-count, one power of ten at a time: the same arithmetic
-;   putdec used to do for itself. C counts what has been written, which
+;   print_decimal used to do for itself. C counts what has been written, which
 ;   is also how a leading zero is recognised - nothing written yet. The
 ;   units digit is written whatever C says, so 0 comes out as "0" rather
 ;   than as nothing at all.
@@ -189,7 +201,7 @@ strupr:		cp	"a"
 ; 		the digits are at the START of the buffer
 ; Modifies:	AF, BC, DE, HL
 
-; numhex - HL as four hex digits at DE. numhex2 - A as two.
+; build_hex_word - HL as four hex digits at DE. build_hex_byte - A as two.
 ;
 ;   The first hex output in the program: every number so far has been
 ;   decimal, because every number so far has been a line or a count. An
@@ -204,56 +216,61 @@ strupr:		cp	"a"
 ; Output:	DE has moved on by four or two
 ; Modifies:	AF, DE
 
-numhex:		ld	a,h
-		call	numhex2
+build_hex_word:	ld	a,h
+		call	build_hex_byte
 		ld	a,l
-numhex2:	push	af
+build_hex_byte:	push	af
 		rrca
 		rrca
 		rrca
 		rrca
-		call	numhex1
+		call	build_hex_nibble
 		pop	af
-numhex1:	and	0fh
+build_hex_nibble:
+		and	0fh
 		add	a,"0"
 		cp	"9"+1
-		jr	c,numhex.p
+		jr	c,build_hex_nibble.put
 		add	a,7		; "9"+1 to "A": the seven characters
-numhex.p:	ld	(de),a	;   between them in ASCII
+build_hex_nibble.put:
+		ld	(de),a	;   between them in ASCII
 		inc	de
 		ret
 
-numdec:		push	ix
+build_decimal:	push	ix
 		push	de
 		pop	ix		; IX -> where the next digit goes
 		ld	c,0		; nothing written yet
 		ld	de,-10000
-		call	numdec.dig
+		call	build_decimal.digit
 		ld	de,-1000
-		call	numdec.dig
+		call	build_decimal.digit
 		ld	de,-100
-		call	numdec.dig
+		call	build_decimal.digit
 		ld	de,-10
-		call	numdec.dig
+		call	build_decimal.digit
 		ld	a,l		; whatever is left is the units digit
 		add	a,"0"
-		call	numdec.put
+		call	build_decimal.put
 		ld	a,c
 		pop	ix
 		ret
 
-numdec.dig:	ld	a,"0"-1
-numdec.sub:	inc	a
+build_decimal.digit:
+		ld	a,"0"-1
+build_decimal.subtract:
+		inc	a
 		add	hl,de		; CY set while there is still enough
-		jr	c,numdec.sub
+		jr	c,build_decimal.subtract
 		sbc	hl,de		; one too far: put it back
 		cp	"0"
-		jr	nz,numdec.put	; a real digit
+		jr	nz,build_decimal.put	; a real digit
 		ld	a,c		; a zero. Anything written yet?
 		or	a
 		ret	z		; no: it is a leading zero, skip it
 		ld	a,"0"
-numdec.put:	ld	(ix+0),a
+build_decimal.put:
+		ld	(ix+0),a
 		inc	ix
 		inc	c
 		ret
@@ -264,7 +281,7 @@ numdec.put:	ld	(ix+0),a
 ;     program links its own copy of this module - only one place where
 ;     they are written.
 
-; strabs - is this name absolute?
+; is_absolute_name - is this name absolute?
 ;
 ;   A LEADING SEPARATOR OR A DRIVE. "B:X.INC" counts, even with no
 ;   backslash after the colon: it names a drive, and putting a
@@ -274,23 +291,25 @@ numdec.put:	ld	(ix+0),a
 ; Output:	CY set = absolute
 ; Modifies:	AF, HL
 
-strabs:		ld	h,d
+is_absolute_name:
+		ld	h,d
 		ld	l,e
 		ld	a,(hl)
 		or	a
 		ret	z		; empty: CY is clear
-		cp	05ch		; the backslash by its code, as strdot
-		jr	z,strab.y	;   above
+		cp	05ch	; the backslash by its code, as find_extension
+		jr	z,is_absolute_name.yes	;   above
 		inc	hl
 		ld	a,(hl)
 		cp	":"
-		jr	z,strab.y
+		jr	z,is_absolute_name.yes
 		or	a		; clears CY
 		ret
-strab.y:	scf
+is_absolute_name.yes:
+		scf
 		ret
 
-; strdirl - how much of a name is the directory part.
+; directory_length - how much of a name is the directory part.
 ;
 ;   Everything up to and INCLUDING the last separator. A name with
 ;   none gives zero, which is how "the current directory" is spelled -
@@ -300,25 +319,30 @@ strab.y:	scf
 ; Output:	A = how many bytes, 0 = none
 ; Modifies:	AF, BC, HL
 
-strdirl:	ld	h,d
+directory_length:
+		ld	h,d
 		ld	l,e
 		ld	b,0		; B = the answer so far
 		ld	c,0		; C = how far we have walked
-strdl.f:	ld	a,(hl)
+directory_length.find:
+		ld	a,(hl)
 		or	a
-		jr	z,strdl.e
+		jr	z,directory_length.done
 		inc	c
 		cp	05ch
-		jr	z,strdl.mk
+		jr	z,directory_length.mark
 		cp	":"
-		jr	nz,strdl.nx
-strdl.mk:	ld	b,c		; the separator itself is part of it
-strdl.nx:	inc	hl
-		jr	strdl.f
-strdl.e:	ld	a,b
+		jr	nz,directory_length.next
+directory_length.mark:
+		ld	b,c		; the separator itself is part of it
+directory_length.next:
+		inc	hl
+		jr	directory_length.find
+directory_length.done:
+		ld	a,b
 		ret
 
-; strcomp - prefix + separator + name, into strbuf.
+; compose_path - prefix + separator + name, into path_buffer.
 ;
 ;   THE PREFIX ENDS AT A ZERO OR A SEMICOLON, which is what lets one
 ;   routine serve both a directory taken from a table and one entry of
@@ -334,88 +358,103 @@ strdl.e:	ld	a,b
 ;
 ; Input:	HL -> the prefix, ended by 0 or ";"
 ;		DE -> the name, ASCIIZ
-; Output:	CY clear = strbuf holds the composed name
-;		CY set   = it would not fit in DOSPATH
+; Output:	CY clear = path_buffer holds the composed name
+;		CY set   = it would not fit in DOS_PATH_MAX
 ;		HL -> the prefix's terminator, either way
 ; Modifies:	AF, BC, DE, HL
 
-strcomp:	ld	(strcnam),de
-		ld	(strcpfx),hl
+compose_path:	ld	(compose_name),de
+		ld	(compose_prefix),hl
 		ld	b,0		; B = how long the prefix is
-strc.m:		ld	a,(hl)
+compose_path.measure_prefix:
+		ld	a,(hl)
 		or	a
-		jr	z,strc.me
+		jr	z,compose_path.prefix_done
 		cp	";"
-		jr	z,strc.me
+		jr	z,compose_path.prefix_done
 		inc	hl
 		inc	b
-		jr	strc.m
-strc.me:	push	hl		; the terminator, handed back below
+		jr	compose_path.measure_prefix
+compose_path.prefix_done:
+		push	hl		; the terminator, handed back below
 		xor	a
-		ld	(strcsep),a	; does a separator have to go between?
+		; does a separator have to go between?
+		ld	(compose_separator),a
 		ld	a,b
 		or	a
-		jr	z,strc.nm	; an empty prefix: no
+		jr	z,compose_path.measure_name	; an empty prefix: no
 		dec	hl
 		ld	a,(hl)		; its last character
 		cp	05ch
-		jr	z,strc.nm	; already ends in one: no
+		jr	z,compose_path.measure_name
+					; already ends in one: no
 		cp	":"
-		jr	z,strc.nm	; a bare drive: no
+		jr	z,compose_path.measure_name	; a bare drive: no
 		ld	a,1
-		ld	(strcsep),a
-strc.nm:	ld	hl,(strcnam)	; E = how long the name is
+		ld	(compose_separator),a
+compose_path.measure_name:
+		ld	hl,(compose_name)	; E = how long the name is
 		ld	e,0
-strc.n2:	ld	a,(hl)
+compose_path.measure_char:
+		ld	a,(hl)
 		or	a
-		jr	z,strc.n2e
+		jr	z,compose_path.measured
 		inc	hl
 		inc	e
-		jr	strc.n2
-strc.n2e:	ld	a,(strcsep)
+		jr	compose_path.measure_char
+compose_path.measured:
+		ld	a,(compose_separator)
 		add	a,b		; what the prefix costs, at most 129
-		cp	DOSPATH
-		jr	nc,strc.long	; the prefix alone does not fit
+		cp	DOS_PATH_MAX
+		jr	nc,compose_path.too_long
+					; the prefix alone does not fit
 		ld	d,a
-		ld	a,DOSPATH-1
+		ld	a,DOS_PATH_MAX-1
 		sub	d		; room left for the name
 		cp	e
-		jr	c,strc.long
-		ld	hl,(strcpfx)	; it fits: build it
-		ld	de,strbuf
+		jr	c,compose_path.too_long
+		ld	hl,(compose_prefix)	; it fits: build it
+		ld	de,path_buffer
 		ld	c,b
 		ld	b,0
 		ld	a,c
 		or	a
-		jr	z,strc.cs
+		jr	z,compose_path.separator
 		ldir			; the prefix, without its terminator
-strc.cs:	ld	a,(strcsep)
+compose_path.separator:
+		ld	a,(compose_separator)
 		or	a
-		jr	z,strc.cn
+		jr	z,compose_path.copy_name
 		ld	a,05ch
 		ld	(de),a
 		inc	de
-strc.cn:	ld	hl,(strcnam)
-strc.cnl:	ld	a,(hl)
+compose_path.copy_name:
+		ld	hl,(compose_name)
+compose_path.copy_char:
+		ld	a,(hl)
 		ld	(de),a
 		or	a		; A = 0 here clears CY as well
-		jr	z,strc.done
+		jr	z,compose_path.done
 		inc	hl
 		inc	de
-		jr	strc.cnl
-strc.done:	pop	hl		; the prefix's terminator
+		jr	compose_path.copy_char
+compose_path.done:
+		pop	hl		; the prefix's terminator
 		ret
 
-strc.long:	pop	hl		; the same, so the caller can step to
+compose_path.too_long:
+		pop	hl		; the same, so the caller can step to
 		scf			;   the next entry
 		ret
 
 		dseg
 
-strbuf:		defs	DOSPATH	; the composed path. ONE buffer for both
+path_buffer:	defs	DOS_PATH_MAX
+				; the composed path. ONE buffer for both
 				;   programs, because every caller opens it
 				;   at once and none of them keeps it
-strcnam:	defs	2	; strcomp: the name it was given
-strcpfx:	defs	2	; strcomp: where that prefix starts
-strcsep:	defs	1	; strcomp: 1 = a separator goes between
+compose_name:	defs	2	; compose_path: the name it was given
+compose_prefix:	defs	2	; compose_path: where that prefix starts
+compose_separator:
+		defs	1	; compose_path: 1 = a separator goes between
 

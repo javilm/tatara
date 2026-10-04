@@ -1,4 +1,4 @@
-; C_LD: the destination is an address. The same asymmetry as LD3 the
+; CLASS_LD: the destination is an address. The same asymmetry as LD3 the
 ; other way round - 22h is HL alone - and the address is the
 ; DESTINATION's expression, remembered before the source was parsed
 	aseg

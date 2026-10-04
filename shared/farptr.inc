@@ -6,7 +6,7 @@
 ; Macros expand INLINE at every use - glue only, logic stays in routines.
 ; derefp needs deref: include alloc.inc before using it.
 
-NULLOFF		equ	0ffffh	; far-pointer offset meaning "null"
+NULL_OFFSET	equ	0ffffh	; far-pointer offset meaning "null"
 
 ; fpcopy dst,src - copy the far pointer at src to dst (both low RAM).
 ; NOTE the argument order: destination first, like ld.
@@ -34,7 +34,7 @@ fpsave		macro	dst
 
 fpnull		macro	fp
 		ld	hl,(fp+2)
-		ld	de,NULLOFF
+		ld	de,NULL_OFFSET
 		or	a
 		sbc	hl,de
 		endm 

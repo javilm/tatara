@@ -9,12 +9,12 @@
 ; source is written as. Everything from an unquoted ";" to the end of the
 ; line is a comment.
 ;
-; Nothing here copies any text. splitln fills in four addresses and four
+; Nothing here copies any text. split_line fills in four addresses and four
 ; lengths that point into the caller's line buffer.
 
-FLDLIB		equ	1		; skips the external in fields.inc
+FIELDS_INCLUDED	equ	1		; skips the external in fields.inc
 
-		public	splitln
+		public	split_line
 
 		include	fields.inc
 		include	ascii.inc
@@ -25,42 +25,42 @@ FLDLIB		equ	1		; skips the external in fields.inc
 ; assembler prove it can do the same thing first.
 
 COLON		equ	03ah		; :
-SEMIC		equ	03bh		; ;
-BANG		equ	021h		; !
-LANGLE		equ	03ch		; <
-RANGLE		equ	03eh		; >
+SEMICOLON	equ	03bh		; ;
+EXCLAMATION	equ	021h		; !
+ANGLE_OPEN	equ	03ch		; <
+ANGLE_CLOSE	equ	03eh		; >
 
-; splitln - cut one source line into label, operation, operand, comment.
+; split_line - cut one source line into label, operation, operand, comment.
 ;
 ;   The four steps fall into one another: whichever field the line runs
 ;   out in, the ones after it keep the zero length set at the top.
 ;
 ; Input:	HL -> the line, zero terminated
-;		IX -> a field block, FLSIZE bytes
+;		IX -> a field block, FIELD_BLOCK_SIZE bytes
 ; Output:	the block is filled in; a length of 0 = field not present
 ; Modifies:	AF, BC, DE, HL
 
-splitln:	xor	a		; every field absent until proved
-		ld	(ix+FL_LABL),a	; otherwise
-		ld	(ix+FL_OPL),a
-		ld	(ix+FL_ARGL),a
-		ld	(ix+FL_CMTL),a
+split_line:	xor	a		; every field absent until proved
+		ld	(ix+FIELD_LABEL_LENGTH),a	; otherwise
+		ld	(ix+FIELD_OPERATION_LENGTH),a
+		ld	(ix+FIELD_OPERAND_LENGTH),a
+		ld	(ix+FIELD_COMMENT_LENGTH),a
 
 		ld	c,0		; C = 0: column 1, where a label is
 					;   a label with or without a colon
 		ld	a,(hl)
-		call	flsep		; Z set = this cannot start a label
-		jr	nz,splitln.lab
+		call	is_field_end	; Z set = this cannot start a label
+		jr	nz,split_line.label
 		or	a
 		ret	z		; an empty line: nothing to do
-		cp	SEMIC
-		jp	z,splitln.cmt	; a comment starting in column 1
-		call	flskip		; indented: on to the first word
+		cp	SEMICOLON
+		jp	z,split_line.comment	; a comment in column 1
+		call	skip_spaces	; indented: on to the first word
 		ld	a,(hl)
 		or	a
 		ret	z		; spaces and nothing else
-		cp	SEMIC
-		jp	z,splitln.cmt	; an indented comment
+		cp	SEMICOLON
+		jp	z,split_line.comment	; an indented comment
 		inc	c		; C = 1: out here only a colon makes
 					;   a label, and without one the word
 					;   is the operation
@@ -68,150 +68,173 @@ splitln:	xor	a		; every field absent until proved
 ; --- the label. In column 1 the colon is optional; indented it is what
 ;     makes this a label at all. "::" is M80's public label, either way.
 
-splitln.lab:	ld	(ix+FL_LAB),l
-		ld	(ix+FL_LAB+1),h
+split_line.label:
+		ld	(ix+FIELD_LABEL),l
+		ld	(ix+FIELD_LABEL+1),h
 		ld	b,0		; B = characters taken so far
-splitln.labs:	ld	a,(hl)
+split_line.label_scan:
+		ld	a,(hl)
 		cp	COLON
-		jr	z,splitln.labc
-		call	flsep
-		jr	z,splitln.labc
+		jr	z,split_line.label_ended
+		call	is_field_end
+		jr	z,split_line.label_ended
 		inc	hl
 		inc	b
-		jr	splitln.labs
+		jr	split_line.label_scan
 
-; The word is cut and A holds the character that ended it: flsep leaves
+; The word is cut and A holds the character that ended it: is_field_end leaves
 ; A alone, and the colon test above falls through with the colon still
 ; in it. In column 1 the word is the label whatever ended it. Indented,
 ; only a colon makes it one - and if none did, the word just walked was
 ; the operation.
 
-splitln.labc:	cp	COLON
-		jr	z,splitln.labe
+split_line.label_ended:
+		cp	COLON
+		jr	z,split_line.label_take
 		ld	a,c
 		or	a
-		jr	nz,splitln.opq
-splitln.labe:	ld	(ix+FL_LABL),b
+		jr	nz,split_line.word_was_operation
+split_line.label_take:
+		ld	(ix+FIELD_LABEL_LENGTH),b
 		ld	a,(hl)
 		cp	COLON
-		jr	nz,splitln.op
+		jr	nz,split_line.operation
 		inc	hl		; step over the colon
 		ld	a,(hl)
 		cp	COLON
-		jr	nz,splitln.op
+		jr	nz,split_line.operation
 		inc	hl		; and over the secuond one: M80 writes
 					; "name::" for a public label
-		jr	splitln.op	; NOT a fall-through: splitln.opq now
-					;   sits between this and the
-					;   operation step
+		; NOT a fall-through: split_line.word_was_operation now sits
+		;   between this and the operation step
+		jr	split_line.operation
 
-; splitln.opq - the indented word was not a label. HL and B already
-;   describe it and FL_LAB already holds its address, so the operation
-;   field is those same three things under another name. FL_LABL was
-;   never written and still holds the zero from the top of splitln:
+; split_line.word_was_operation - the indented word was not a label.
+;   HL and B already
+;   describe it and FIELD_LABEL already holds its address, so the operation
+;   field is those same three things under another name. FIELD_LABEL_LENGTH was
+;   never written and still holds the zero from the top of split_line:
 ;   there is nothing to undo.
 ;
 ;   JP and not JR. The jump clears the whole operation step, and 073
 ;   spent a build on a JR that went out of range in the short routine a
 ;   correction had just grown.
 
-splitln.opq:	ld	a,(ix+FL_LAB)
-		ld	(ix+FL_OP),a
-		ld	a,(ix+FL_LAB+1)
-		ld	(ix+FL_OP+1),a
-		ld	(ix+FL_OPL),b
-		jp	splitln.arg
+split_line.word_was_operation:
+		ld	a,(ix+FIELD_LABEL)
+		ld	(ix+FIELD_OPERATION),a
+		ld	a,(ix+FIELD_LABEL+1)
+		ld	(ix+FIELD_OPERATION+1),a
+		ld	(ix+FIELD_OPERATION_LENGTH),b
+		jp	split_line.operand
 
 ; --- the operation
 
-splitln.op:	call	flskip		; over the spaces and tabs
+split_line.operation:
+		call	skip_spaces	; over the spaces and tabs
 		ld	a,(hl)
 		or	a
 		ret	z		; the line ends here
-		cp	SEMIC
-		jp	z,splitln.cmt
-		ld	(ix+FL_OP),l
-		ld	(ix+FL_OP+1),h
+		cp	SEMICOLON
+		jp	z,split_line.comment
+		ld	(ix+FIELD_OPERATION),l
+		ld	(ix+FIELD_OPERATION+1),h
 		ld	b,0
-splitln.ops:	ld	a,(hl)
-		call	flsep
-		jr	z,splitln.ope
+split_line.operation_scan:
+		ld	a,(hl)
+		call	is_field_end
+		jr	z,split_line.operation_take
 		inc	hl
 		inc	b
-		jr	splitln.ops
-splitln.ope:	ld	(ix+FL_OPL),b
+		jr	split_line.operation_scan
+split_line.operation_take:
+		ld	(ix+FIELD_OPERATION_LENGTH),b
 
 ; --- the operand. This is the field that may contain spaces, so it runs
 ;     to an unquoted ";" or to the end of the line, and the padding before
 ;     a comment is trimmed off afterwards.
 
-splitln.arg:	call	flskip
+split_line.operand:
+		call	skip_spaces
 		ld	a,(hl)
 		or	a
 		ret	z
-		cp	SEMIC
-		jp	z,splitln.cmt
-		ld	(ix+FL_ARG),l
-		ld	(ix+FL_ARG+1),h
+		cp	SEMICOLON
+		jp	z,split_line.comment
+		ld	(ix+FIELD_OPERAND),l
+		ld	(ix+FIELD_OPERAND+1),h
 		ld	b,0		; B = characters taken
 		ld	c,0		; C = the quote we are inside, 0 = none
 		ld	d,0		; D = how deep in <> we are. A macro
 					;   argument may hold a ";" inside
 					;   brackets or behind a "!", and M80
 					;   passes both - measured, appendix J
-splitln.args:	ld	a,(hl)
+split_line.operand_scan:
+		ld	a,(hl)
 		or	a
-		jr	z,splitln.arge	; the end of the line
+		jr	z,split_line.operand_end	; the end of the line
 		ld	e,a		; keep the character; A is about to go
 		ld	a,c
 		or	a
-		jr	nz,splitln.inq	; inside a string: only the closing
-					; quote means anything
+		; inside a string: only the closing quote means anything
+		jr	nz,split_line.inside_quote
 		ld	a,e
-		cp	BANG
-		jr	z,splitln.arbl	; "!x": x is text, whatever x is
-		cp	LANGLE
-		jr	z,splitln.arbo
-		cp	RANGLE
-		jr	z,splitln.arbc
-		cp	SEMIC
-		jr	nz,splitln.arnq
-		ld	a,d		; A SEMICOLON INSIDE BRACKETS IS TEXT.
-		or	a		;   mxargs is what takes the brackets
-		jr	z,splitln.arge	;   off and what strips the "!" - this
-		ld	a,e		;   module's only job is to stop the
-splitln.arnq:	cp	QUOTE1		;   field ending here
-		jr	z,splitln.opnq
+		cp	EXCLAMATION
+		; "!x": x is text, whatever x is
+		jr	z,split_line.escaped
+		cp	ANGLE_OPEN
+		jr	z,split_line.bracket_open
+		cp	ANGLE_CLOSE
+		jr	z,split_line.bracket_close
+		cp	SEMICOLON
+		jr	nz,split_line.quote_test
+		; A SEMICOLON INSIDE BRACKETS IS TEXT. build_args is what takes
+		; the brackets off and what strips the "!" - this module's only
+		; job is to stop the field ending here
+		ld	a,d
+		or	a
+		jr	z,split_line.operand_end
+		ld	a,e
+split_line.quote_test:
+		cp	QUOTE1		;   field ending here
+		jr	z,split_line.quote_opens
 		cp	QUOTE2
-		jr	nz,splitln.argt
-splitln.opnq:	ld	c,a		; remember which quote opened it,
-		ld	(arqhl),hl	;   and WHERE, and how far we had
-		ld	a,b		;   got. If the line ends with it
-		ld	(arqb),a	;   still open it was no quote at
-		jr	splitln.argt	;   all - see splitln.aq
-splitln.inq:	ld	a,e
+		jr	nz,split_line.take_char
+split_line.quote_opens:
+		ld	c,a		; remember which quote opened it,
+		ld	(quote_position),hl	;   and WHERE, and how far we
+		ld	a,b		;   had got. If the line ends with
+		ld	(quote_taken),a	;   still open it was no quote at
+		jr	split_line.take_char	;   all - see .lone_quote
+split_line.inside_quote:
+		ld	a,e
 		cp	c
-		jr	nz,splitln.argt
+		jr	nz,split_line.take_char
 		ld	c,0		; the matching quote: out again
-splitln.argt:	inc	hl
+split_line.take_char:
+		inc	hl
 		inc	b
-		jr	splitln.args
+		jr	split_line.operand_scan
 
-splitln.arbl:	inc	hl		; THE "!" IS KEPT: mxargs removes it
+split_line.escaped:
+		inc	hl	; THE "!" IS KEPT: build_args removes it
 		inc	b		;   and has to see it. The character
 		ld	a,(hl)		;   after it is taken whatever it is,
 		or	a		;   and if the line ended instead, HL
-		jr	z,splitln.arge	;   is on the terminator already
-		jr	splitln.argt
-splitln.arbo:	inc	d
-		jr	splitln.argt
-splitln.arbc:	ld	a,d		; never below zero: an unmatched ">"
+		jr	z,split_line.operand_end	;   is on it already
+		jr	split_line.take_char
+split_line.bracket_open:
+		inc	d
+		jr	split_line.take_char
+split_line.bracket_close:
+		ld	a,d		; never below zero: an unmatched ">"
 		or	a		;   is not this module's to report
-		jr	z,splitln.argt
+		jr	z,split_line.take_char
 		dec	d
-		jr	splitln.argt
+		jr	split_line.take_char
 
-; splitln.aq - the quote at arqhl opened a run that the line ended
+; split_line.lone_quote - the quote at quote_position opened a run
+;   that the line ended
 ;   inside, so it was not a delimiter at all: it was an apostrophe in an
 ;   operand, and "ex af,af' ; swap them" would otherwise have its
 ;   comment swallowed into the operand field. Go back to that character,
@@ -220,51 +243,59 @@ splitln.arbc:	ld	a,d		; never below zero: an unmatched ">"
 ;   This terminates. A second lone quote later in the line backtracks to
 ;   ITS position, which is further along than this one.
 
-splitln.aq:	ld	hl,(arqhl)
-		ld	a,(arqb)
+split_line.lone_quote:
+		ld	hl,(quote_position)
+		ld	a,(quote_taken)
 		ld	b,a
 		ld	c,0		; no quote open from here
-		jr	splitln.argt	; step over it and go on
+		jr	split_line.take_char	; step over it and go on
 
 ; Trim spaces and tabs off the end. HL must be left pointing at the ";"
 ; or the terminator for the comment step, so the walk back uses DE.
 
-splitln.arge:	ld	a,c		; still inside a quoted run at the
+split_line.operand_end:
+		ld	a,c		; still inside a quoted run at the
 		or	a		;   end of the line? Then it never
-		jr	nz,splitln.aq	;   was one
+		jr	nz,split_line.lone_quote	;   was one
 		push	hl
 		ld	a,b
 		or	a
-		jr	z,splitln.argx
+		jr	z,split_line.operand_take
 		ld	d,h
 		ld	e,l
-splitln.trim:	dec	de
+split_line.trim:
+		dec	de
 		ld	a,(de)
-		call	flisws
-		jr	nz,splitln.argx	; a real character: stop here
+		call	is_space_or_tab
+		; a real character: stop here
+		jr	nz,split_line.operand_take
 		dec	b
-		jr	nz,splitln.trim
-splitln.argx:	pop	hl
-		ld	(ix+FL_ARGL),b
+		jr	nz,split_line.trim
+split_line.operand_take:
+		pop	hl
+		ld	(ix+FIELD_OPERAND_LENGTH),b
 
 ; --- the comment, semicolon included, to the end of the lien
 
-splitln.cmt:	ld	a,(hl)
+split_line.comment:
+		ld	a,(hl)
 		or	a
 		ret	z		; no comment after all
-		ld	(ix+FL_CMT),l
-		ld	(ix+FL_CMT+1),h
+		ld	(ix+FIELD_COMMENT),l
+		ld	(ix+FIELD_COMMENT+1),h
 		ld	b,0
-splitln.cmts:	ld	a,(hl)
+split_line.comment_scan:
+		ld	a,(hl)
 		or	a
-		jr	z,splitln.cmte
+		jr	z,split_line.comment_take
 		inc	hl
 		inc	b
-		jr	splitln.cmts
-splitln.cmte:	ld	(ix+FL_CMTL),b
+		jr	split_line.comment_scan
+split_line.comment_take:
+		ld	(ix+FIELD_COMMENT_LENGTH),b
 		ret
 
-; flsep - does the character in A end a plain field?
+; is_field_end - does the character in A end a plain field?
 ;
 ;   True for a space, a tab, a semicolon and the line's terminator. The
 ;   operand field does NOT use this - it is allowed to contain spaces.
@@ -273,22 +304,23 @@ splitln.cmte:	ld	(ix+FL_CMTL),b
 ; Output:	Z set = yes, this ends a field
 ; Modifies:	F only - A comes back untouched
 
-flsep:		or	a
+is_field_end:	or	a
 		ret	z		; the terminator
 		cp	CHR_SPACE
 		ret	z
 		cp	CHR_TAB
 		ret	z
-		cp	SEMIC
+		cp	SEMICOLON
 		ret
 
-; flisws - is the character in A a space or a tab?
+; is_space_or_tab - is the character in A a space or a tab?
 ;
 ; Input:	A = character
 ; Output:	Z set = yes
 ; Modifies:	F only
 
-flisws:		cp	CHR_SPACE
+is_space_or_tab:
+		cp	CHR_SPACE
 		ret	z
 		cp	CHR_TAB
 		ret
@@ -302,17 +334,18 @@ flisws:		cp	CHR_SPACE
 ; Output:	HL -> the first character that is not a space or a tab
 ; Modifies:	AF, HL
 
-flskip:		ld	a,(hl)
+skip_spaces:	ld	a,(hl)
 		cp	CHR_SPACE
-		jr	z,flskip.adv
+		jr	z,skip_spaces.step
 		cp	CHR_TAB
 		ret	nz
-flskip.adv:	inc	hl
-		jr	flskip
+skip_spaces.step:
+		inc	hl
+		jr	skip_spaces
 
 		dseg
 
-arqhl:		defs	2	; splitln: where a quote opened, and
-arqb:		defs	1	;   how much of the operand had been
+quote_position:	defs	2	; split_line: where a quote opened, and
+quote_taken:	defs	1	;   how much of the operand had been
 				;   taken when it did
 

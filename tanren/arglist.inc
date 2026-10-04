@@ -12,48 +12,55 @@
 ; Nothing here knows what a word MEANS. A "/" is not a switch here,
 ; it is a character.
 
-		ifndef	ARGLIB
+		ifndef	ARGLIST_INCLUDED
 
-		extrn argtail		; the command tail, split into
+		extrn split_command_tail	; the command tail, split into
 					; words, with any @FILE expanded
 					; where it stands
-					; (errlheap, errlargs, errlrsp,
-					; errlnest do not return)
-		extrn argfile		; one response file's words,
+					; (error_out_of_memory,
+					; error_too_many_words,
+					; error_cannot_open_list,
+					; error_nested_file_list
+					; do not return)
+		extrn read_response_file	; one response file's words,
 					; appended to the list
-					; in:  argfn = its name, ASCIIZ
-		extrn argadd		; one word, appended
+					; in:  response_file_name = its
+					;      name, ASCIIZ
+		extrn arglist_add	; one word, appended
 					; in:  DE -> the word, ASCIIZ
-		extrn argfrst		; start walking the list
-		extrn argnext		; the next word
+		extrn arglist_first	; start walking the list
+		extrn arglist_next	; the next word
 					; in:  DE -> where it goes
 					; out: CY set = there are no more
-		extrn argn		; how many words the list holds
+		extrn arglist_count	; how many words the list holds
 					; (a WORD)
-		extrn argcut		; 0FFh = the command tail was
+		extrn tail_truncated	; 0FFh = the command tail was
 					; exactly 127 characters long and
 					; MAY have been truncated
-		extrn argfn		; the response file being read,
+		extrn response_file_name	; the response file being read,
 					; for the error that names it
-		extrn argrdir		; the directory that file lives in,
+		extrn response_file_directory
+					; the directory that file lives in,
 					; ASCIIZ - empty if there was none,
 					; or it named no directory
-		extrn argfrf		; 0FFh = the word argnext just
+		extrn word_from_file	; 0FFh = the word arglist_next just
 					; handed out came from it
 		endif
 
-ARGSIZE		equ	4096	; the block the words live in. A link of
-				; eighteen modules with fourteen-character
-				; names is under three hundred bytes, so
-				; this is room for ten of them - and it is
-				; mapper memory, where the image already
-				; takes four times as much
-ARGMAX		equ	129	; the longest single word: LMAXPATH and
-				; its terminator
-ARGBUFS		equ	128	; the response file is read in chunks of
-				; this, which is a sector's worth and one
-				; BDOS call per 128 characters instead of
-				; one per character
-ARGAT		equ	"@"	; what makes a word a response file,
-ARGCOM		equ	";"	;   and what starts a comment in one
+ARGLIST_BLOCK_SIZE	equ	4096	; the block the words live in.
+					; A link of eighteen modules with
+					; fourteen-character names is under
+					; three hundred bytes, so this is
+					; room for ten of them - and it is
+					; mapper memory, where the image
+					; already takes four times as much
+ARGLIST_WORD_MAX	equ	129	; the longest single word: PATH_MAX
+					; and its terminator
+RESPONSE_CHUNK_SIZE	equ	128	; the response file is read in
+					; chunks of this, which is a
+					; sector's worth and one BDOS call
+					; per 128 characters instead of one
+					; per character
+RESPONSE_FILE_CHAR	equ	"@"	; what makes a word a response file,
+RESPONSE_COMMENT_CHAR	equ	";"	;   and what starts a comment in one
 

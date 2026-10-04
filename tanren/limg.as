@@ -11,34 +11,38 @@
 ;
 ; EVERY BDOS CALL TAKES PAGE 2 BACK, so nothing goes to the file
 ; straight out of the mapper: a chunk is copied into ordinary RAM
-; first and written from there. lsgdump and objnam met the same rule
-; from the other side.
+; first and written from there. segments_dump and write_mapped_name met the
+; same rule from the other side.
 
-LIMGLIB		equ	1	; skips the externals in limg.inc
+LIMG_INCLUDED		equ	1	; skips the externals in limg.inc
 
-		public	imginit
-		public	imgwr
-		public	imgget
-		public	imgput
-		public	imgsave
-		public	imglo
-		public	imghi
-		public	imgany
+		public	image_init
+		public	image_write_run
+		public	image_read_byte
+		public	image_write_byte
+		public	image_save
+		public	image_low
+		public	image_high
+		public	image_any
 
 		include	limg.inc
-		include	lobj.inc	; lobbuf: the buffer a NAME goes
-					;   in, borrowed by imgsave, which
-					;   runs when every object file is
-					;   closed
-		include	lerrs.inc	; errlheap, errlbig, errlout,
-					;   errlwrt
+		include	lobj.inc
+					; objfile_string_buffer: the buffer
+					;   a NAME goes in, borrowed by
+					;   image_save, which runs when
+					;   every object file is closed
+		include	lerrs.inc
+					; error_out_of_memory,
+					;   error_image_too_big,
+					;   error_cannot_create,
+					;   error_cannot_write
 		include	alloc.inc	; halloc, deref
-		include	farptr.inc	; derefp, NULLOFF
+		include	farptr.inc	; derefp, NULL_OFFSET
 		include	msxdos.inc	; _CREATE, _WRITE, _CLOSE
 
 		cseg
 
-; imginit - an empty image.
+; image_init - an empty image.
 ;
 ;   The extremes start the wrong way round on purpose: the first
 ;   write in either direction replaces them.
@@ -47,122 +51,131 @@ LIMGLIB		equ	1	; skips the externals in limg.inc
 ; Output:	every block unallocated, nothing written
 ; Modifies:	AF, B, HL
 
-imginit:	ld	hl,imgtab
-		ld	b,IMGNBLK
-imgi.lp:	inc	hl		; past the slot and the segment
+image_init:	ld	hl,block_table
+		ld	b,IMAGE_BLOCK_COUNT
+image_init.loop:
+		inc	hl		; past the slot and the segment
 		inc	hl
-		ld	(hl),0ffh	; NULLOFF is 0FFFFh, so both bytes
+		ld	(hl),0ffh	; NULL_OFFSET is 0FFFFh, so both bytes
 		inc	hl		;   of the offset are FFh
 		ld	(hl),0ffh
 		inc	hl
-		djnz	imgi.lp
+		djnz	image_init.loop
 		ld	hl,0ffffh
-		ld	(imglo),hl
+		ld	(image_low),hl
 		ld	hl,0
-		ld	(imghi),hl
+		ld	(image_high),hl
 		xor	a
-		ld	(imgany),a
+		ld	(image_any),a
 		ret
 
-; imgmark - this address now holds content.
+; image_mark - this address now holds content.
 ;
 ;   THE SPAN IS MEASURED AND NOT ASSUMED: an absolute module may put
 ;   content at 4000h in a link whose segments start at 0100h, and the
 ;   file has to span both.
 ;
 ; Input:	HL = the address
-; Output:	imglo, imghi, imgany
+; Output:	image_low, image_high, image_any
 ; Modifies:	AF, DE
 
-imgmark:	ld	a,0ffh
-		ld	(imgany),a
-		ld	de,(imglo)
+image_mark:	ld	a,0ffh
+		ld	(image_any),a
+		ld	de,(image_low)
 		push	hl
 		or	a
 		sbc	hl,de
 		pop	hl
-		jr	nc,imgm.hi	; not below the lowest so far
-		ld	(imglo),hl
-imgm.hi:	ld	de,(imghi)
+		jr	nc,image_mark.high	; not below the lowest so far
+		ld	(image_low),hl
+image_mark.high:
+		ld	de,(image_high)
 		push	hl
 		or	a
 		sbc	hl,de
 		pop	hl
 		ret	c		; not above the highest
-		ld	(imghi),hl
+		ld	(image_high),hl
 		ret
 
-; imgfind - the far pointer of block A, in imgfp.
+; image_find_block - the far pointer of block A, in block_pointer.
 ;
-;   IT IS NOT CALLED imgblk: IMGBLK is the block size, SOLiD's as
+;   IT IS NOT CALLED imgblk: IMAGE_BLOCK_SIZE is the block size, SOLiD's as
 ;   folds case, and the two names would be one symbol. Two builds
 ;   were lost to exactly that.
 ;
-;   imgalw is what separates a reader from a writer. imgwr and imgput
-;   may create a block; imgget and imgsave may not, because reading an
+;    may_create_block is what separates a reader from a writer. image_write_run
+;    and image_write_byte
+;    may create a block; image_read_byte and image_save may not, because
+;    reading an
 ;   address nobody wrote should not cost a mapper segment.
 ;
 ; Input:	A = which block, 0 to 15
-;		imgalw = 0FFh if it may be created
-; Output:	imgfp = its far pointer
+;		may_create_block = 0FFh if it may be created
+; Output:	block_pointer = its far pointer
 ;		CY set = there is no such block
-;		(errlheap does not return)
+;		(error_out_of_memory does not return)
 ; Modifies:	AF, DE, HL - NOT BC, which holds the offset
 
-imgfind:	ld	(imgb),a
+image_find_block:
+		ld	(block_number),a
 		ld	l,a
 		ld	h,0
 		add	hl,hl
 		add	hl,hl		; four bytes each
-		ld	de,imgtab
+		ld	de,block_table
 		add	hl,de
-		ld	(imgbp),hl	; where it lives, for imgnew
-		ld	de,imgfp
+		ld	(block_slot),hl	; where it lives, for image_new_block
+		ld	de,block_pointer
 		push	bc
 		ld	bc,4
 		ldir
 		pop	bc
-		ld	a,(imgfp+3)	; a real offset is 0 to 3FFFh, so a
+					; a real offset is 0 to 3FFFh, so a
+		ld	a,(block_pointer+3)
 		cp	0ffh		;   high byte of FFh can only be
-		jr	nz,imgf.ok	;   NULLOFF
-		ld	a,(imgalw)
+		jr	nz,image_find_block.found	;   NULL_OFFSET
+		ld	a,(may_create_block)
 		or	a
 		scf
 		ret	z		; not allowed to create one
-		jp	imgnew
-imgf.ok:	or	a		; CY clear: imgfp is good
+		jp	image_new_block
+image_find_block.found:
+		or	a	; CY clear: block_pointer is good
 		ret
 
-; imgnew - a block that has not existed until now.
+; image_new_block - a block that has not existed until now.
 ;
-; Input:	imgb, imgbp
-; Output:	imgfp, and imgtab holds it too
-;		(errlheap does not return)
+; Input:	block_number, block_slot
+; Output:	block_pointer, and block_table holds it too
+;		(error_out_of_memory does not return)
 ; Modifies:	AF, DE, HL - not BC
 
-imgnew:		push	bc
-		ld	bc,IMGBLK
-		ld	hl,imgfp
+image_new_block:
+		push	bc
+		ld	bc,IMAGE_BLOCK_SIZE
+		ld	hl,block_pointer
 		call	halloc
-		jp	c,errlheap
-		ld	hl,imgfp	; the table keeps it as well
-		ld	de,(imgbp)
+		jp	c,error_out_of_memory
+		ld	hl,block_pointer; the table keeps it as well
+		ld	de,(block_slot)
 		ld	bc,4
 		ldir
-		derefp	imgfp		; and it starts as zeros
+		derefp	block_pointer	; and it starts as zeros
 		ld	d,h
 		ld	e,l
 		inc	de
 		ld	(hl),0
-		ld	bc,IMGBLK-1
+		ld	bc,IMAGE_BLOCK_SIZE-1
 		ldir
 		pop	bc
 		or	a		; CY clear
 		ret
 
-; imgmap, imgmapa - the byte at HL, addressable in page 2.
+; image_map, image_map_allowed - the byte at HL, addressable in page 2.
 ;
-;   imgmapa creates the block if it has to; imgmap does not and says
+;    image_map_allowed creates the block if it has to; image_map does not and
+;    says
 ;   so with carry. BOTH ANSWER WITH HOW MUCH OF THE BLOCK FOLLOWS, so
 ;   a caller copying a run knows where it has to stop and map again: a
 ;   run may cross a 4 KB boundary and the two halves are in two mapper
@@ -171,15 +184,17 @@ imgnew:		push	bc
 ; Input:	HL = the address
 ; Output:	HL = where that byte is in page 2
 ;		BC = bytes of this block from there on, 1 to 4096
-;		CY set = no such block (imgmap only; BC is still right)
+;		CY set = no such block (image_map only; BC is still right)
 ; Modifies:	AF, BC, DE, HL
 
-imgmapa:	ld	a,0ffh
-		jr	imgm.go
-imgmap:		xor	a
-imgm.go:	ld	(imgalw),a
+image_map_allowed:
+		ld	a,0ffh
+		jr	image_map.go
+image_map:
+		xor	a
+image_map.go:	ld	(may_create_block),a
 		ld	a,h
-		and	IMGOMSK
+		and	IMAGE_OFFSET_MASK
 		ld	b,a
 		ld	c,l		; BC = the offset within the block
 		ld	a,h		; and A = which block
@@ -188,12 +203,12 @@ imgm.go:	ld	(imgalw),a
 		rrca
 		rrca
 		rrca
-		call	imgfind
-		jr	c,imgm.non
-		derefp	imgfp		; BC SURVIVES A deref, which is why
+		call	image_find_block
+		jr	c,image_map.absent
+		derefp	block_pointer	; BC SURVIVES A deref, which is why
 		add	hl,bc		;   the offset is kept there
 		push	hl
-		ld	hl,IMGBLK
+		ld	hl,IMAGE_BLOCK_SIZE
 		or	a
 		sbc	hl,bc		; and the rest of the block
 		ld	b,h
@@ -201,7 +216,9 @@ imgm.go:	ld	(imgalw),a
 		pop	hl
 		or	a		; CY clear
 		ret
-imgm.non:	ld	hl,IMGBLK	; no block, but the caller still
+					; no block, but the caller still
+image_map.absent:
+		ld	hl,IMAGE_BLOCK_SIZE
 		or	a		;   needs the distance to the next
 		sbc	hl,bc		;   one
 		ld	b,h
@@ -209,7 +226,7 @@ imgm.non:	ld	hl,IMGBLK	; no block, but the caller still
 		scf
 		ret
 
-; imgwr - a run of content, into the image.
+; image_write_run - a run of content, into the image.
 ;
 ;   A BLOCK AT A TIME. A run of 200 bytes starting at 0FF0h is in two
 ;   mapper segments, and one ldir cannot reach both.
@@ -217,83 +234,90 @@ imgm.non:	ld	hl,IMGBLK	; no block, but the caller still
 ; Input:	HL = the address the run loads at
 ;		DE -> the bytes, in ordinary RAM
 ;		BC = how many
-; Output:	they are in the image; imglo and imghi know
-;		(errlbig, errlheap do not return)
+; Output:	they are in the image; image_low and image_high know
+;		(error_image_too_big, error_out_of_memory do not return)
 ; Modifies:	everything
 
-imgwr:		ld	(imgwa),hl
-		ld	(imgws),de
-		ld	(imgwn),bc
+image_write_run:
+		ld	(run_address),hl
+		ld	(run_source),de
+		ld	(run_left),bc
 		ld	a,b
 		or	c
 		ret	z		; a run of no bytes
 		dec	bc		; THE LAST BYTE, not the one after
 		add	hl,bc		;   it: a run ending exactly at
-		jp	c,errlbig	;   FFFFh is legal and wrapping
-		call	imgmark		;   past it is not
-		ld	hl,(imgwa)
-		call	imgmark		; and the first one
-imgw.lp:	ld	hl,(imgwn)
+		jp	c,error_image_too_big	;   FFFFh is legal and wrapping
+		call	image_mark	;   past it is not
+		ld	hl,(run_address)
+		call	image_mark	; and the first one
+image_write_run.loop:
+		ld	hl,(run_left)
 		ld	a,h
 		or	l
 		ret	z
-		ld	hl,(imgwa)
-		call	imgmapa		; -> HL, and BC = room left
-		ld	(imgwp),hl
-		ld	hl,(imgwn)
+		ld	hl,(run_address)
+		call	image_map_allowed	; -> HL, and BC = room left
+		ld	(run_target),hl
+		ld	hl,(run_left)
 		or	a
 		sbc	hl,bc		; more than this block holds?
-		jr	c,imgw.fits
+		jr	c,image_write_run.fits
 		ld	h,b		; then fill it to the end
 		ld	l,c
-		jr	imgw.n
-imgw.fits:	ld	hl,(imgwn)
-imgw.n:		ld	(imgwc),hl
+		jr	image_write_run.next
+image_write_run.fits:
+		ld	hl,(run_left)
+image_write_run.next:
+		ld	(run_chunk),hl
 		ld	b,h
 		ld	c,l
-		ld	de,(imgwp)
-		ld	hl,(imgws)
+		ld	de,(run_target)
+		ld	hl,(run_source)
 		ldir			; ordinary RAM -> the mapper
-		ld	(imgws),hl
-		ld	bc,(imgwc)	; and everything moves on by it
-		ld	hl,(imgwa)
+		ld	(run_source),hl
+		ld	bc,(run_chunk)	; and everything moves on by it
+		ld	hl,(run_address)
 		add	hl,bc
-		ld	(imgwa),hl
-		ld	hl,(imgwn)
+		ld	(run_address),hl
+		ld	hl,(run_left)
 		or	a
 		sbc	hl,bc
-		ld	(imgwn),hl
-		jp	imgw.lp		; jp: the loop is longer than a jr
+		ld	(run_left),hl
+					; jp: the loop is longer than a jr
+		jp	image_write_run.loop
 
-; imgget - one byte out of the image.
+; image_read_byte - one byte out of the image.
 ;
 ; Input:	HL = its address
 ; Output:	A = the byte, or 0 where nothing was ever written
 ; Modifies:	AF, BC, DE, HL
 
-imgget:		call	imgmap
+image_read_byte:
+		call	image_map
 		ld	a,0		; ld does not touch the carry
 		ret	c
 		ld	a,(hl)
 		ret
 
-; imgput - one byte into it.
+; image_write_byte - one byte into it.
 ;
 ; Input:	A  = the byte
 ;		HL = its address
 ; Output:	it is there
 ; Modifies:	AF, BC, DE, HL
 
-imgput:		ld	(imgbyt),a
-		call	imgmark
-		call	imgmapa
-		ld	a,(imgbyt)
+image_write_byte:
+		ld	(byte_to_write),a
+		call	image_mark
+		call	image_map_allowed
+		ld	a,(byte_to_write)
 		ld	(hl),a
 		ret
 
-; imgsave - the image, to a file.
+; image_save - the image, to a file.
 ;
-;   FROM imglo TO imghi INCLUSIVE and nothing outside it: the space a
+;   FROM image_low TO image_high INCLUSIVE and nothing outside it: the space a
 ;   DS reserved after the last byte of content is not in the file,
 ;   which is what every loader expects and what L80 does too.
 ;
@@ -305,12 +329,12 @@ imgput:		ld	(imgbyt),a
 ;		A  = 0 for raw bytes, anything else for a BLOAD header
 ;		HL = the execution address that header carries
 ; Output:	CY set = nothing was written, and no file was made
-;		(errlout, errlwrt do not return)
+;		(error_cannot_create, error_cannot_write do not return)
 ; Modifies:	everything
 
-imgsave:	ld	(imghdr),a	; BOTH ARGUMENTS FIRST: the rest of
-		ld	(imgexe),hl	;   this routine wants A and HL for
-		ld	a,(imgany)	;   its own purposes
+image_save:	ld	(save_header),a	; BOTH ARGUMENTS FIRST: the rest of
+		ld	(save_entry),hl	;   this routine wants A and HL for
+		ld	a,(image_any)	;   its own purposes
 		or	a
 		scf
 		ret	z		; a link with no content in it
@@ -318,172 +342,214 @@ imgsave:	ld	(imghdr),a	; BOTH ARGUMENTS FIRST: the rest of
 		ld	b,a		; attributes 0 = an ordinary file
 		system	_CREATE		; -> A = error, B = the handle
 		or	a
-		jp	nz,errlout
+		jp	nz,error_cannot_create
 		ld	a,b
-		ld	(imghand),a
-		ld	a,(imghdr)	; the seven bytes, BEFORE any
+		ld	(save_handle),a
+		ld	a,(save_header)	; the seven bytes, BEFORE any
 		or	a		;   content
-		call	nz,imgbld
-		ld	hl,(imglo)
-		ld	(imgsa),hl
-		ld	hl,(imghi)	; both ends are in the file, so the
-		ld	de,(imglo)	;   count is the span plus one
+		call	nz,image_bload_header
+		ld	hl,(image_low)
+		ld	(save_address),hl
+		ld	hl,(image_high)	; both ends are in the file, so the
+		ld	de,(image_low)	;   count is the span plus one
 		or	a
 		sbc	hl,de
 		inc	hl
-		ld	(imgsn),hl
-imgs.lp:	ld	hl,(imgsn)
+		ld	(save_left),hl
+image_save.loop:
+		ld	hl,(save_left)
 		ld	a,h
 		or	l
-		jr	z,imgs.end
+		jr	z,image_save.done
 		ld	a,h		; more than 255 left?
 		or	a
-		jr	z,imgs.part	; no: HL is the last chunk
-		ld	hl,IMGCHNK
-imgs.part:	ld	(imgsc),hl
-		call	imgfill		; those bytes, into lobbuf
-		ld	hl,(imgsc)
-		ld	de,lobbuf
-		ld	a,(imghand)
+		jr	z,image_save.partial	; no: HL is the last chunk
+		ld	hl,IMAGE_CHUNK_SIZE
+image_save.partial:
+		ld	(save_chunk),hl
+					; those bytes, into
+					; objfile_string_buffer
+		call	image_next_chunk
+		ld	hl,(save_chunk)
+		ld	de,objfile_string_buffer
+		ld	a,(save_handle)
 		ld	b,a
 		system	_WRITE		; -> A = error
 		or	a
-		jp	nz,errlwrt
-		ld	bc,(imgsc)
-		ld	hl,(imgsa)
+		jp	nz,error_cannot_write
+		ld	bc,(save_chunk)
+		ld	hl,(save_address)
 		add	hl,bc
-		ld	(imgsa),hl
-		ld	hl,(imgsn)
+		ld	(save_address),hl
+		ld	hl,(save_left)
 		or	a
 		sbc	hl,bc
-		ld	(imgsn),hl
-		jp	imgs.lp
-imgs.end:	ld	a,(imghand)
+		ld	(save_left),hl
+		jp	image_save.loop
+image_save.done:
+		ld	a,(save_handle)
 		ld	b,a
 		system	_CLOSE
 		or	a		; CY clear: it was written
 		ret
 
-; imgbld - the seven-byte BLOAD header.
+; image_bload_header - the seven-byte BLOAD header.
 ;
 ;   FEh, the start address, THE ADDRESS OF THE LAST BYTE - not the one
 ;   after it - and the execution address: MSX BASIC's BSAVE format,
-;   which is what BLOAD reads and what makes a file a .BIN. imghi is
+;   which is what BLOAD reads and what makes a file a .BIN. image_high is
 ;   already the last byte, so the inclusive end this format is usually
 ;   got wrong on costs nothing here.
 ;
-;   A file of no bytes never reaches this, because imgsave returns
+;   A file of no bytes never reaches this, because image_save returns
 ;   before it creates anything.
 ;
 ; Input:	the file is open
-;		imgexe = the execution address
-; Output:	seven bytes are written (errlwrt does not return)
+;		save_entry = the execution address
+; Output:	seven bytes are written (error_cannot_write does not return)
 ; Modifies:	AF, BC, DE, HL
 
-imgbld:		ld	a,0feh		; "this is a machine code file"
-		ld	(imgbuf),a
-		ld	hl,(imglo)
-		ld	(imgbuf+1),hl
-		ld	hl,(imghi)
-		ld	(imgbuf+3),hl
-		ld	hl,(imgexe)
-		ld	(imgbuf+5),hl
+image_bload_header:
+		ld	a,0feh	; "this is a machine code file"
+		ld	(header_bytes),a
+		ld	hl,(image_low)
+		ld	(header_bytes+1),hl
+		ld	hl,(image_high)
+		ld	(header_bytes+3),hl
+		ld	hl,(save_entry)
+		ld	(header_bytes+5),hl
 		ld	hl,7
-		ld	de,imgbuf
-		ld	a,(imghand)
+		ld	de,header_bytes
+		ld	a,(save_handle)
 		ld	b,a
 		system	_WRITE		; -> A = error
 		or	a
-		jp	nz,errlwrt
+		jp	nz,error_cannot_write
 		ret
 
-; imgfill - the next chunk of the image, into lobbuf.
+; image_next_chunk - the next chunk of the image, into objfile_string_buffer.
 ;
 ;   ZEROS FIRST, then whatever blocks exist are copied over them: a
 ;   chunk may cross a block nobody ever wrote to, and the file needs
 ;   zeros there rather than a hole.
 ;
-; Input:	imgsa = from where
-;		imgsc = how many, 1 to 256
-; Output:	lobbuf holds them
+; Input:	save_address = from where
+;		save_chunk = how many, 1 to 256
+; Output:	objfile_string_buffer holds them
 ; Modifies:	everything
 
-imgfill:	ld	hl,lobbuf
+image_next_chunk:
+		ld	hl,objfile_string_buffer
 		ld	(hl),0
 		ld	d,h
 		ld	e,l
 		inc	de
-		ld	bc,IMGCHNK-1
+		ld	bc,IMAGE_CHUNK_SIZE-1
 		ldir
 		ld	hl,0
-		ld	(imgfa),hl	; how far into the chunk we are
-imgf.lp:	ld	hl,(imgfa)
-		ld	de,(imgsc)
+		ld	(chunk_done),hl	; how far into the chunk we are
+image_next_chunk.loop:
+		ld	hl,(chunk_done)
+		ld	de,(save_chunk)
 		or	a
 		sbc	hl,de
 		ret	nc		; the chunk is full
-		ld	hl,(imgsa)
-		ld	de,(imgfa)
+		ld	hl,(save_address)
+		ld	de,(chunk_done)
 		add	hl,de		; the address this byte holds
-		call	imgmap
+		call	image_map
 		push	af		; CY: there is no block there
-		ld	(imgfp2),hl
-		ld	hl,(imgsc)
-		ld	de,(imgfa)
+		ld	(chunk_window),hl
+		ld	hl,(save_chunk)
+		ld	de,(chunk_done)
 		or	a
 		sbc	hl,de		; what is left of the chunk
 		or	a
 		sbc	hl,bc		; less than the rest of the block?
-		jr	c,imgf.rest
+		jr	c,image_next_chunk.rest
 		ld	h,b
 		ld	l,c
-		jr	imgf.n
-imgf.rest:	ld	hl,(imgsc)
-		ld	de,(imgfa)
+		jr	image_next_chunk.next
+image_next_chunk.rest:
+		ld	hl,(save_chunk)
+		ld	de,(chunk_done)
 		or	a
 		sbc	hl,de
-imgf.n:		ld	(imgfc),hl
+image_next_chunk.next:
+		ld	(chunk_piece),hl
 		pop	af
-		jr	c,imgf.skip	; no block: the zeros stand
-		ld	hl,lobbuf
-		ld	de,(imgfa)
+		jr	c,image_next_chunk.skip	; no block: the zeros stand
+		ld	hl,objfile_string_buffer
+		ld	de,(chunk_done)
 		add	hl,de
 		ex	de,hl		; DE -> where in the buffer
-		ld	hl,(imgfp2)	; HL -> the mapper
-		ld	bc,(imgfc)
+		ld	hl,(chunk_window)	; HL -> the mapper
+		ld	bc,(chunk_piece)
 		ldir
-imgf.skip:	ld	hl,(imgfa)
-		ld	bc,(imgfc)
+image_next_chunk.skip:
+		ld	hl,(chunk_done)
+		ld	bc,(chunk_piece)
 		add	hl,bc
-		ld	(imgfa),hl
-		jp	imgf.lp
+		ld	(chunk_done),hl
+		jp	image_next_chunk.loop
 
 		dseg
 
-imgtab:		defs	IMGNBLK*4	; the blocks, by which 4 KB of the
+					; the blocks, by which 4 KB of the
+block_table:
+		defs	IMAGE_BLOCK_COUNT*4
 					;   address space they hold
-imgfp:		defs	4	; one of them, on its way to deref
-imgbp:		defs	2	; and where in imgtab it lives
-imgb:		defs	1	; which block it is
-imgalw:		defs	1	; 0FFh = this caller may create one
-imglo:		defs	2	; the lowest address written,
-imghi:		defs	2	;   the highest, and
-imgany:		defs	1	;   whether anything was at all
-imgbyt:		defs	1	; imgput: the byte, across the mapping
-imgwa:		defs	2	; imgwr: where the run goes,
-imgws:		defs	2	;   where it comes from,
-imgwn:		defs	2	;   how much is still to go,
-imgwc:		defs	2	;   this chunk of it,
-imgwp:		defs	2	;   and where that chunk lands
-imghdr:		defs	1	; imgsave: 0 = raw bytes, anything else
-imgexe:		defs	2	;   = a BLOAD header, and the execution
+block_pointer:
+		defs	4	; one of them, on its way to deref
+block_slot:
+		defs	2	; and where in block_table it lives
+block_number:
+		defs	1	; which block it is
+					; 0FFh = this caller may create one
+may_create_block:
+		defs	1
+image_low:
+		defs	2	; the lowest address written,
+image_high:
+		defs	2	;   the highest, and
+image_any:
+		defs	1	;   whether anything was at all
+					; image_write_byte: the byte, across
+					; the mapping
+byte_to_write:
+		defs	1
+run_address:
+		defs	2	; image_write_run: where the run goes,
+run_source:
+		defs	2	;   where it comes from,
+run_left:
+		defs	2	;   how much is still to go,
+run_chunk:
+		defs	2	;   this chunk of it,
+run_target:
+		defs	2	;   and where that chunk lands
+					; image_save: 0 = raw bytes, anything
+					; else
+save_header:
+		defs	1
+save_entry:
+		defs	2	;   = a BLOAD header, and the execution
 				;   address it carries
-imgbuf:		defs	7	; imgbld: those seven bytes
-imghand:	defs	1	; imgsave: the output file's handle,
-imgsa:		defs	2	;   the address it is up to,
-imgsn:		defs	2	;   how many bytes are left, and
-imgsc:		defs	2	;   this chunk's size
-imgfa:		defs	2	; imgfill: how far into the chunk,
-imgfc:		defs	2	;   this piece of it, and
-imgfp2:		defs	2	;   where in page 2 that piece is
+header_bytes:
+		defs	7	; image_bload_header: those seven bytes
+save_handle:	defs	1	; image_save: the output file's handle,
+save_address:
+		defs	2	;   the address it is up to,
+save_left:
+		defs	2	;   how many bytes are left, and
+save_chunk:
+		defs	2	;   this chunk's size
+					; image_next_chunk: how far into the
+					; chunk,
+chunk_done:
+		defs	2
+chunk_piece:
+		defs	2	;   this piece of it, and
+chunk_window:
+		defs	2	;   where in page 2 that piece is
 

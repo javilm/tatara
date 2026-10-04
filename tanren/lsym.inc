@@ -6,54 +6,65 @@
 ; single walk looking for referenced-and-not-defined, rather than a
 ; comparison between two collections.
 
-		ifndef	LSYMLIB
+		ifndef	LSYM_INCLUDED
 
-		extrn lsyinit		; the table, empty, in the
+		extrn symbols_init		; the table, empty, in the
 					; default case mode
-		extrn lsycase		; MODNAME's flags byte: the mode
+		extrn symbols_set_case	; MODNAME's flags byte: the mode
 					; on the first module, and the
 					; mixture check on every one after
 					; in:  A = the flags byte
-					; (errlymix does not return)
-		extrn lsypub		; a PUBDEF entry
-					; in:  lsfld2 = segment, offset
-					;      lobbuf = the name
-					; (errlydup does not return)
-		extrn lsyext		; an EXTDEF entry
-					; in:  lobbuf = the name
-		extrn lsyfix		; EVERY DEFINED, NON-ABSOLUTE
+					; (error_case_mismatch does not return)
+		extrn symbols_add_public		; a PUBDEF entry
+					;  in: public_segment_offset = segment,
+					;  offset
+					;      objfile_string_buffer = the name
+					; (error_duplicate_public does not
+					; return)
+		extrn symbols_add_external		; an EXTDEF entry
+					; in:  objfile_string_buffer = the name
+		extrn symbols_relocate		; EVERY DEFINED, NON-ABSOLUTE
 					; SYMBOL: its value plus its
 					; segment's base, which is an
-					; address. AFTER lsglay
-		extrn lsyval		; PASS 2: the final value of the
-					; name in lobbuf. Every EXTDEF
-					; name is in the table by then
-					; and lsyfix has made every
+					; address. AFTER place_segments
+		extrn symbols_value	; PASS 2: the final value of the
+					; name in objfile_string_buffer.
+					; Every EXTDEF name is in the
+					; table by then
+					; and symbols_relocate has made every
 					; value an address
-					; in:  lobbuf, lobsln
+					;  in: objfile_string_buffer,
+					;  objfile_string_length
 					; out: HL = its value
-		extrn lsychk		; END OF PASS 1: name every
+		extrn symbols_check		; END OF PASS 1: name every
 					; external nobody defined - ALL of
 					; them - and stop if there were
 					; any
-					; (errlyunr does not return)
-		extrn lsymod		; a module is starting: keep its
+					; (error_undefined_symbols does not
+					; return)
+		extrn symbols_set_module
+					; a module is starting: keep its
 					; name, for the messages that have
 					; to say which module
-					; in:  lobbuf, lobsln
-		extrn lsydump		; /M: the symbols
-		extrn lsfld2		; a PUBDEF's segment and offset,
+					;  in: objfile_string_buffer,
+					;  objfile_string_length
+		extrn symbols_dump		; /M: the symbols
+					; a PUBDEF's segment and offset,
+		extrn public_segment_offset
 					; read before its name
 		endif
 
-SYF_DEF		equ	001h	; some module defines it
-SYF_REF		equ	002h	; some module wants it
-SYF_ABS		equ	004h	; its value is an address already, and
+SYMBOL_DEFINED		equ	001h	; some module defines it
+SYMBOL_REFERENCED		equ	002h	; some module wants it
+SYMBOL_ABSOLUTE		equ	004h	; its value is an address already, and
 				; the layout must NOT add a segment's base
-LSYBKTS		equ	64	; buckets. tatara.as alone declares 182
+SYMBOL_BUCKETS		equ	64	; buckets. tatara.as alone declares 182
 				; externals, so this table is the biggest
 				; of the three by an order of magnitude
-LSYSIZE		equ	7	; flags, value (2), the segment (4)
-LMODMAX		equ	16	; the current module's name, kept for the
+					; flags, value (2), the segment (4)
+SYMBOL_RECORD_SIZE		equ	7
+					; the current module's name, kept for
+					; the
+MODULE_NAME_MAX		equ	16
 				; messages that name one. Cut, not refused
 

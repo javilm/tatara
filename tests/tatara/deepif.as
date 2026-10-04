@@ -1,4 +1,4 @@
-; 17 nested conditionals; MAXCND is 16
+; 17 nested conditionals; COND_MAX_DEPTH is 16
 	if1
 	if1
 	if1

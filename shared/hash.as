@@ -6,8 +6,9 @@
 ; Any number of tables per program: each table is a caller-owned DESCRIPTOR,
 ; passed to every routine in IX (IX is preserved by all routines):
 ;
-;   +0 (HT_CASE) Case mode byte (HTCASES/HTCASEI). Indicates whether the 
-;                table keys are case sensitive or insensitive (default: ins)
+;   +0 (HT_CASE) Case mode byte: HT_CASE_SENSITIVE or HT_CASE_FOLD.
+;                Whether the table's keys are compared with case or
+;                without it (default: without)
 ;   +1 (HT_MASK) Bucket mask = bucket count - 1 (count = power of 2, 2..256,
 ;                so the mask fits a byte: FFh, 7Fh, 3Fh, ...)
 ;   +2 (HT_TAB)  The bucket index: (mask+1) far pointers, 4 bytes each
@@ -24,20 +25,20 @@
 ; Build phases:
 ; H1: skeleton - descriptors, htinit, the hash function. [done]
 ; H2: htadd + htfind. [done]
-; H3: htdel, htclear, htnext (enumeration), htrepl. [done]
+; H3: htdelete, htclear, htnext (enumeration), htreplace. [done]
 ; H4: convert wc to this library (regression test). [done]
 ; H5: release pass - hash.inc, documentation, repo. [done]
 
-HASHLIB		equ	1
+HASH_INCLUDED	equ	1
 
 		public	htinit
 		public	hthash		; public mainly for tests/diagnostics
 		public	htadd
 		public	htfind
-		public	htdel
+		public	htdelete
 		public	htclear
 		public	htnext
-		public	htrepl
+		public	htreplace
 
 		include	alloc.inc	; halloc + deref (records live in the
 					; heap)
@@ -49,7 +50,7 @@ HASHLIB		equ	1
 ; htinit - format a descriptor as an empty table.
 ;
 ; Input:	IX = descriptor
-;		A  = case mode (HTCASES/HTCASEI)
+;		A  = case mode (HT_CASE_SENSITIVE/HT_CASE_FOLD)
 ;		B  = bucket mask (bucket count - 1; count = power of 2)
 ; Output:	descriptor initialized, all buckets empty
 ; Modifies:	F, BC, DE, HL (IX, A preserved)
@@ -95,13 +96,13 @@ htinit:		ld	(ix+HT_CASE),a
 
 hthash:		ld	b,a		; B = bytes left
 		ld	c,0		; C = hash accumulator
-hthash.1:	ld	a,(de)
+hthash.loop:	ld	a,(de)
 		call	htfold		; fold case if insensitive
 		rlc	c		; rotate the accumulator...
 		xor	c		; ...mix the byte in...
 		ld	c,a		; ...and store back
 		inc	de
-		djnz	hthash.1
+		djnz	hthash.loop
 		ld	a,c
 		ret
 
@@ -138,10 +139,10 @@ htfold:		bit	0,(ix+HT_CASE)	; bit leaves A alone
 ;		CY clear = buffer filled, record linked at its bucket's head
 ; Modifies:	AB, BC, DE, HL (IX preserved)
 
-htadd:		ld	(htskey),de	; stash the parameters
-		ld	(htsklen),a
-		ld	(htspay),bc
-		ld	(htsres),hl
+htadd:		ld	(probe_key),de	; stash the parameters
+		ld	(probe_key_length),a
+		ld	(add_payload_size),bc
+		ld	(result_buffer),hl
 
 		call	hthash		; A = hash (DE/A still hold key/len)
 		and	(ix+HT_MASK)	; A = bucket number
@@ -154,50 +155,54 @@ htadd:		ld	(htskey),de	; stash the parameters
 		add	hl,de
 		ld	de,HT_TAB
 		add	hl,de
-		ld	(htsbkt),hl
+		ld	(bucket_address),hl
 
-		ld	a,(htsklen)	; record size = HTHDR + klen + paysize
+		; record size = HT_HEADER_SIZE + klen + paysize
+		ld	a,(probe_key_length)
 		ld	l,a
 		ld	h,0
-		ld	de,HTHDR
+		ld	de,HT_HEADER_SIZE
 		add	hl,de
-		ld	de,(htspay)
+		ld	de,(add_payload_size)
 		add	hl,de
 		ld	b,h
 		ld	c,l
-		ld	hl,htsnew
+		ld	hl,new_record
 		call	halloc		; ht_new = the record's far pointer
 		ret	c		; out of memory -> CY through
 
-		derefp	htsnew		; HL -> record base (page 2)
+		derefp	new_record	; HL -> record base (page 2)
 		ex	de,hl		; record.next = current bucket head
-		ld	hl,(htsbkt)	; (the bucket is low RAM - readable
-		ld	bc,4		; while page 2 is banked)
+		ld	hl,(bucket_address)	; the bucket is low RAM,
+		ld	bc,4		;   readable while page 2 is
+					;   banked
 		ldir			; DE -> record+4
-		ld	a,(htsklen)	; +4: key length
+		ld	a,(probe_key_length)	; +4: key length
 		ld	(de),a
 		inc	de		; DE -> record+5: the key bytes
-		ld	hl,(htskey)
+		ld	hl,(probe_key)
 		ld	c,a
 		ld	b,0
 		ldir
 
-		ld	hl,(htsbkt)	; bucket head = the new record
+		ld	hl,(bucket_address)	; bucket head = the new record
 		ex	de,hl
-		ld	hl,htsnew
+		ld	hl,new_record
 		ld	bc,4
 		ldir
 
-		ld	a,(htsklen)	; result: advance the far pointer's
-		ld	l,a		; offset past HTHDR + klen -> payload
+		; result: advance the far pointer's offset past
+		;   HT_HEADER_SIZE + klen, to the payload
+		ld	a,(probe_key_length)
+		ld	l,a
 		ld	h,0
-		ld	de,HTHDR
+		ld	de,HT_HEADER_SIZE
 		add	hl,de
-		ld	de,(htsnew+2)
+		ld	de,(new_record+2)
 		add	hl,de
-		ld	(htsnew+2),hl
-		ld	hl,htsnew	; copy to the caller's buffer
-		ld	de,(htsres)
+		ld	(new_record+2),hl
+		ld	hl,new_record	; copy to the caller's buffer
+		ld	de,(result_buffer)
 		ld	bc,4
 		ldir
 		or	a		; CY clear = success
@@ -213,9 +218,9 @@ htadd:		ld	(htskey),de	; stash the parameters
 ;		CY clear = buffer = payload far pointer
 ; Modifies:	AF, BC, DE, HL (IX preserved)
 
-htfind:		ld	(htskey),de
-		ld	(htsklen),a
-		ld	(htsres),hl
+htfind:		ld	(probe_key),de
+		ld	(probe_key_length),a
+		ld	(result_buffer),hl
 
 		call	hthash
 		and	(ix+HT_MASK)
@@ -228,58 +233,60 @@ htfind:		ld	(htskey),de
 		add	hl,de
 		ld	de,HT_TAB
 		add	hl,de
-		fpsave	htscur		; cursor = bucket head
-htfind.loop:	fpnull	htscur		; chain exhausted -> miss
+		fpsave	walk_cursor	; cursor = bucket head
+htfind.loop:	fpnull	walk_cursor	; chain exhausted -> miss
 		jr	z,htfind.miss
-		derefp	htscur		; HL -> record base (page 2)
+		derefp	walk_cursor	; HL -> record base (page 2)
 		push	hl
-		ld	de,HT_KLEN	; length match first - rejects most
-		add	hl,de		; non-matches on one compare
-		ld	a,(htsklen)
+		ld	de,HT_KEY_LENGTH	; length first: it rejects most
+		add	hl,de		;   non-matches on one compare
+		ld	a,(probe_key_length)
 		cp	(hl)
 		pop	hl
 		jr	nz,htfind.next
 		push	hl
 		ld	de,HT_KEY
 		add	hl,de		; HL -> record key (page 2)
-		ld	de,(htskey)	; DE -> probe key (low RAM)
-		ld	a,(htsklen)
+		ld	de,(probe_key)	; DE -> probe key (low RAM)
+		ld	a,(probe_key_length)
 		ld	b,a
-htfind.cmp:	ld	a,(de)		; fold BOTH sides, so neither the
+htfind.compare:	ld	a,(de)		; fold BOTH sides, so neither the
 		call	htfold		; stored case nor the probe case
 		ld	c,a		; matters in insensitive mode
 		ld	a,(hl)
 		call	htfold
 		cp	c
-		jr	nz,htfind.no
+		jr	nz,htfind.differs
 		inc	hl
 		inc	de
-		djnz	htfind.cmp
+		djnz	htfind.compare
 		pop	hl		; MATCH (HL discarded - balance stack)
-		ld	a,(htsklen)	; result: cursor's offset advanced
-		ld	l,a		; past HTHDR + klen -> payload
+		; result: the cursor's offset advanced past
+		;   HT_HEADER_SIZE + klen, to the payload
+		ld	a,(probe_key_length)
+		ld	l,a
 		ld	h,0
-		ld	de,HTHDR
+		ld	de,HT_HEADER_SIZE
 		add	hl,de
-		ld	de,(htscur+2)
+		ld	de,(walk_cursor+2)
 		add	hl,de
-		ld	(htscur+2),hl
-		ld	hl,htscur
-		ld	de,(htsres)
+		ld	(walk_cursor+2),hl
+		ld	hl,walk_cursor
+		ld	de,(result_buffer)
 		ld	bc,4
 		ldir
 		or	a		; CY clear = found
 		ret
-htfind.no:	pop	hl
-htfind.next:	derefp	htscur		; cursor = record.next: re-map (cache
-		fpsave	htscur		; hit); HL -> +0 = the next link - 
+htfind.differs:	pop	hl
+htfind.next:	derefp	walk_cursor	; cursor = record.next: re-map (cache
+		fpsave	walk_cursor	; hit); HL -> +0 = the next link - 
 					; fpsave copies it out BEFORE
 					; anything can remap the window
 		jr	htfind.loop
 htfind.miss:	scf
 		ret
 
-; htdel - delete a key's record.
+; htdelete - delete a key's record.
 ;
 ; Input:	IX = descriptor
 ;		DE = key address
@@ -292,8 +299,8 @@ htfind.miss:	scf
 ; dangling after this. If the payload held far pointers to other heap
 ; blocks, free those FIRST - the library cannot know what payloads mean.
 
-htdel:		ld	(htskey),de
-		ld	(htsklen),a
+htdelete:	ld	(probe_key),de
+		ld	(probe_key_length),a
 		call	hthash
 		and	(ix+HT_MASK)
 		ld	l,a		; HL = IX + HT_TAB + bucket*4
@@ -305,92 +312,99 @@ htdel:		ld	(htskey),de
 		add	hl,de
 		ld	de,HT_TAB
 		add	hl,de
-		ld	(htsbkt),hl	; the bucket entry's address
-		fpsave	htscur		; cursor = bucket head
-		ld	hl,NULLOFF	; predecessor = null = "the bucket"
-		ld	(htsprv+2),hl
-htdel.loop:	fpnull	htscur		; end of chain -> not found
-		jp	z,htdel.miss
-		derefp	htscur		; HL -> record base (page 2)
+		ld	(bucket_address),hl	; the bucket entry's address
+		fpsave	walk_cursor	; cursor = bucket head
+		ld	hl,NULL_OFFSET	; predecessor = null = "the bucket"
+		ld	(previous_record+2),hl
+htdelete.loop:	fpnull	walk_cursor	; end of chain -> not found
+		jp	z,htdelete.miss
+		derefp	walk_cursor	; HL -> record base (page 2)
 		push	hl
-		ld	de,HT_KLEN
+		ld	de,HT_KEY_LENGTH
 		add	hl,de
-		ld	a,(htsklen)
+		ld	a,(probe_key_length)
 		cp	(hl)
 		pop	hl
-		jp	nz,htdel.next
+		jp	nz,htdelete.next
 		push	hl
 		ld	de,HT_KEY
 		add	hl,de
-		ld	de,(htskey)
-		ld	a,(htsklen)
+		ld	de,(probe_key)
+		ld	a,(probe_key_length)
 		ld	b,a
-htdel.cmp:	ld	a,(de)		; folded compare, as in htfind
+htdelete.compare:
+		ld	a,(de)		; folded compare, as in htfind
 		call	htfold
 		ld	c,a
 		ld	a,(hl)
 		call	htfold
 		cp	c
-		jr	nz,htdel.no
+		jr	nz,htdelete.differs
 		inc	hl
 		inc	de
-		djnz	htdel.cmp
+		djnz	htdelete.compare
 		pop	hl		; MATCH (discard saved base)
-		derefp	htscur		; save the doomed record's next link
-		fpsave	htsnxt		; (cache hit) HL -> +0 = next
-		fpnull	htsprv		; who points at the record?
-		jr	nz,htdel.mid
-		ld	de,(htsbkt)	; head case: bucket (low RAM) = next
-		ld	hl,htsnxt
+		derefp	walk_cursor	; save the doomed record's next link
+		fpsave	saved_next	; (cache hit) HL -> +0 = next
+		fpnull	previous_record	; who points at the record?
+		jr	nz,htdelete.unlink
+		; head case: the bucket (low RAM) takes next
+		ld	de,(bucket_address)
+		ld	hl,saved_next
 		ld	bc,4
 		ldir
-		jr	htdel.free
-htdel.mid:	derefp	htsprv		; mid-chain: prev.next (page 2) = next
+		jr	htdelete.release
+htdelete.unlink:
+		derefp	previous_record	; mid-chain: prev.next (page 2) = next
 		ex	de,hl		; HL -> prev record +0
-		ld	hl,htsnxt	; (destination arrives in DE - no
+		ld	hl,saved_next	; (destination arrives in DE - no
 		ld	bc,4		; macro)
 		ldir
-htdel.free:	ld	hl,htscur	; free the record: its far pointer IS
+htdelete.release:
+		ld	hl,walk_cursor	; free the record: its far pointer IS
 		call	hfree		; a heap payload pointer
 		or	a		; CY clear = deleted
 		ret
-htdel.no:	pop	hl
-htdel.next:	fpcopy	htsprv,htscur	; predecessor = current record
-		derefp	htscur		; cursor = current.next: HL -> +0 =
-		fpsave	htscur		; the next link, copied out safely
-		jp	htdel.loop
-htdel.miss:	scf
+htdelete.differs:
+		pop	hl
+htdelete.next:			; predecessor = current record
+		fpcopy	previous_record,walk_cursor
+		derefp	walk_cursor	; cursor = current.next: HL -> +0 =
+		fpsave	walk_cursor	; the next link, copied out safely
+		jp	htdelete.loop
+htdelete.miss:	scf
 		ret
 
 ; htclear - free every record and leave the table empty (reusable without
 ; a new htinit).
-; The htdel payload CAUTION applies to every record: free payload-referenced
+; The htdelete payload CAUTION applies to every record: free payload-referenced
 ; blocks first, e.g. by iterating with htnext before calling this.
 ;
 ; Input:	IX = descriptor
 ; Output:	all records freed, all buckets empty
 ; Modifies:	AF, BC, DE, HL (IX preserved)
 
-htclear:	push	ix		; htsbkt = first bucket's address
+htclear:	push	ix	; bucket_address = first bucket's address
 		pop	hl
 		ld	de,HT_TAB
 		add	hl,de
-		ld	(htsbkt),hl
-		ld	l,(ix+HT_MASK)	; htsbcn = bucket count = mask+1
+		ld	(bucket_address),hl
+		ld	l,(ix+HT_MASK)	; bucket count = mask+1
 		ld	h,0
 		inc	hl
-		ld	(htsbcn),hl
-htclear.bkt:	ld	hl,(htsbkt)	; HL = the bucket's address...
-		fpsave	htscur		; ...cursor = this bucket's head
-htclear.chn:	fpnull	htscur		; chain done?
-		jr	z,htclear.nxb
-		derefp	htscur		; save next BEFORE freeing: HL -> +0
-		fpsave	htsnxt
-		ld	hl,htscur
+		ld	(bucket_counter),hl
+htclear.bucket:	ld	hl,(bucket_address)	; HL = the bucket's address...
+		fpsave	walk_cursor	; ...cursor = this bucket's head
+htclear.chain:	fpnull	walk_cursor	; chain done?
+		jr	z,htclear.next_bucket
+		derefp	walk_cursor	; save next BEFORE freeing: HL -> +0
+		fpsave	saved_next
+		ld	hl,walk_cursor
 		call	hfree
-		fpcopy	htscur,htsnxt	; cursor = next
-		jr	htclear.chn
-htclear.nxb:	ld	hl,(htsbkt)	; null the bucket (4 x 0FFh)
+		fpcopy	walk_cursor,saved_next	; cursor = next
+		jr	htclear.chain
+htclear.next_bucket:
+		ld	hl,(bucket_address)	; null the bucket (4 x 0FFh)
 		ld	(hl),0ffh
 		inc	hl
 		ld	(hl),0ffh
@@ -398,16 +412,16 @@ htclear.nxb:	ld	hl,(htsbkt)	; null the bucket (4 x 0FFh)
 		ld	(hl),0ffh
 		inc	hl
 		ld	(hl),0ffh
-		ld	hl,(htsbkt)	; next bucket
+		ld	hl,(bucket_address)	; next bucket
 		ld	de,4
 		add	hl,de
-		ld	(htsbkt),hl
-		ld	hl,(htsbcn)
+		ld	(bucket_address),hl
+		ld	hl,(bucket_counter)
 		dec	hl
-		ld	(htsbcn),hl
+		ld	(bucket_counter),hl
 		ld	a,h
 		or	l
-		jp	nz,htclear.bkt
+		jp	nz,htclear.bucket
 		ret
 
 ; htnext - enumerate the records, one per call, in bucket order.
@@ -417,7 +431,8 @@ htclear.nxb:	ld	hl,(htsbkt)	; null the bucket (4 x 0FFh)
 ;   +1..+4 far pointer to the current record
 ; START a walk with: +0 = 0 and the offset field (+3..+4) = FFFFh.
 ; After each CY-clear return, +1..+4 is the next record's far pointer - parse
-; it with HT_KLEN/HT_KEY/HTHDR. Do not add or delete between calls of one walk.
+; it with HT_KEY_LENGTH/HT_KEY/HT_HEADER_SIZE. Do not add or delete
+; between the calls of one walk.
 ;
 ; Input:	IX = descriptor
 ;		HL = iterator address
@@ -425,25 +440,26 @@ htclear.nxb:	ld	hl,(htsbkt)	; null the bucket (4 x 0FFh)
 ;		CY clear = iterator updated
 ; Modifies:	AF, BC, DE, HL (IX preserved)
 
-htnext:		ld	(htsres),hl	; remember the iterator's address
+htnext:				; remember the iterator's address
+		ld	(result_buffer),hl
 		push	hl
 		inc	hl		; HL -> its far pointer...
-		fpsave	htscur		; ...copied to scratch
+		fpsave	walk_cursor	; ...copied to scratch
 		pop	hl
 		ld	a,(hl)		; current bucket number
-		ld	(htsbcn),a
-		fpnull	htscur		; null fp -> scan for a non-empty
-		jr	z,htnext.sc1	; bucket, starting at this one
-		derefp	htscur		; follow the current record's next:
-		fpsave	htscur		; HL -> +0, copied out safly
-		fpnull	htscur		; chain continues -> answer found
+		ld	(bucket_counter),a
+		fpnull	walk_cursor	; null fp -> scan for a non-empty
+		jr	z,htnext.scan	; bucket, starting at this one
+		derefp	walk_cursor	; follow the current record's next:
+		fpsave	walk_cursor	; HL -> +0, copied out safly
+		fpnull	walk_cursor	; chain continues -> answer found
 		jr	nz,htnext.got
-		ld	a,(htsbcn)	; chain ended -> next bucket (if any)
+		ld	a,(bucket_counter)	; chain ended: next bucket
 		cp	(ix+HT_MASK)
 		jr	z,htnext.done
 		inc	a
-		ld	(htsbcn),a
-htnext.sc1:	ld	a,(htsbcn)	; HL = IX + HT_TAB + bucket*4
+		ld	(bucket_counter),a
+htnext.scan:	ld	a,(bucket_counter)	; HL = IX + HT_TAB + bucket*4
 		ld	l,a
 		ld	h,0
 		add	hl,hl
@@ -453,21 +469,22 @@ htnext.sc1:	ld	a,(htsbcn)	; HL = IX + HT_TAB + bucket*4
 		add	hl,de
 		ld	de,HT_TAB
 		add	hl,de
-		fpsave	htscur		; this bucket's head -> scratch
-		fpnull	htscur
+		fpsave	walk_cursor	; this bucket's head -> scratch
+		fpnull	walk_cursor
 		jr	nz,htnext.got	; non-empty -> answer found
-		ld	a,(htsbcn)	; empty -> next bucket or done
+		ld	a,(bucket_counter)	; empty -> next bucket or done
 		cp	(ix+HT_MASK)
 		jr	z,htnext.done
 		inc	a
-		ld	(htsbcn),a
-		jr	htnext.sc1
-htnext.got:	ld	hl,(htsres)	; write bucket + far pointer back
-		ld	a,(htsbcn)
+		ld	(bucket_counter),a
+		jr	htnext.scan
+htnext.got:			; write bucket + far pointer back
+		ld	hl,(result_buffer)
+		ld	a,(bucket_counter)
 		ld	(hl),a
 		inc	hl
 		ex	de,hl
-		ld	hl,htscur
+		ld	hl,walk_cursor
 		ld	bc,4
 		ldir
 		or	a		; CY clear = a record is delivered
@@ -475,8 +492,9 @@ htnext.got:	ld	hl,(htsres)	; write bucket + far pointer back
 htnext.done:	scf
 		ret
 
-; htrepl - replace: delete any existing record for the key, and add a new one.
-; "Not present" is not an error - htrepl then behaves as htadd.
+; htreplace - delete any existing record for the key, and add a new
+; one.
+; "Not present" is not an error - htreplace then behaves as htadd.
 ; Far pointers stored for the OLD payload are dangling afterwards.
 ;
 ; Input:	IX = descriptor
@@ -488,11 +506,11 @@ htnext.done:	scf
 ;		CY clear = buffer filled
 ; Modifies:	AF, BC, DE, HL (IX preserved)
 
-htrepl:		push	hl	; htdel consumes DE/A and the scratch,
+htreplace:	push	hl	; htdelete consumes DE/A and the scratch,
 		push	bc	; so hold the htadd parameters on the
 		push	de	; stack across it
 		push	af
-		call	htdel	; CY (not found deliberately ignored)
+		call	htdelete	; CY (not found deliberately ignored)
 		pop	af
 		pop	de
 		pop	bc
@@ -503,14 +521,17 @@ htrepl:		push	hl	; htdel consumes DE/A and the scratch,
 
 		dseg
 
-htskey:		defs	2		; probe/new key address
-htsklen:	defs	1		; its length
-htspay:		defs	2		; htadd: payload size
-htsres:		defs	2		; caller's result-buffer address
-htsbkt:		defs	2		; address of the hashed bucket
-htscur:		defs	4		; walk cursor (far pointer)
-htsnew:		defs	4		; new record (far pointer)
-htsprv:		defs	4		; htdel: predecessor record (offset
+probe_key:	defs	2		; probe/new key address
+probe_key_length:
+		defs	1		; its length
+add_payload_size:
+		defs	2		; htadd: payload size
+result_buffer:	defs	2		; caller's result-buffer address
+bucket_address:	defs	2		; address of the hashed bucket
+walk_cursor:	defs	4		; walk cursor (far pointer)
+new_record:	defs	4		; new record (far pointer)
+previous_record:
+		defs	4		; htdelete: predecessor record (offset
 					; FFFF = the bucket is the predecessor)
-htsnxt:		defs	4		; saved 'next' of a record being freed
-htsbcn:		defs	2		; bucket counter (htclear/htnext)
+saved_next:	defs	4		; saved 'next' of a record being freed
+bucket_counter:	defs	2		; bucket counter (htclear/htnext)

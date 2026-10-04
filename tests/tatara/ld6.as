@@ -1,5 +1,5 @@
-; the first INSTRUCTION to carry a relocatable operand. emitxw was proved
-; emitxw on a DW; this is the same routine with a different caller,
+; the first INSTRUCTION with a relocatable operand. emit_expr_word was proved
+; emit_expr_word on a DW; this is the same routine with a different caller,
 ; and the listing marks both addresses
 	cseg
 t0:	ld	hl,t2
